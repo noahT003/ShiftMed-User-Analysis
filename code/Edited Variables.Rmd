@@ -1,0 +1,83 @@
+---
+title: "Shiftvars"
+author: "Noah Thomas"
+date: "2026-02-12"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+shift = read.csv("Bucknell_ShiftMed_Data_File.csv", header = TRUE) #read in file
+library(tidyverse)  #both libraries that are useful... tidyverse includes dplyr and ggplot
+library(patchwork)
+#top 5 nurse msas
+popfocus = c("Philadelphia-Wilmington-Atlantic City PA-NJ-DE-MD CMSA", "Washington-Baltimore DC-MD-VA-WV CMSA", "Pittsburgh PA MSA", "St. Louis MO-IL MSA", "New York-Northern New Jersey-Long Island NY-NJ-CT-PA")
+#type 5 nurse types
+typefocus = c("CNA","LPN","RN","GNA","STNA")
+#forming shiftfocus: subset of shift with the top 5 msas and top 5 nurse types
+smallshift = shift[shift$nurse_type %in% typefocus, ]
+shiftfocus = smallshift[smallshift$nurse_msa %in% popfocus, ]
+#shiftfocus = shiftfocus[shiftfocus$worker_status != "TERMINATED", ]
+
+#shiftworkers: subset of shift with only nurses who have worked at least one shift
+shiftworkers = shift[shift$shifts_worked > 0, ]
+
+#shiftfocusworkers: combination of both shiftfocus and shiftworkers
+shiftfocusworkers = shiftfocus[shiftfocus$shifts_worked > 0, ]
+
+#below: various variables for each subset
+#ogshowrate: original measure of show rate described by stakeholders
+#newshowrate: new measure of show rate described by stakeholders
+shift$ogshowrate = shift$shifts_worked / shift$total_shifts_claimed
+shift$newshowrate = shift$shifts_worked / (shift$shifts_worked + shift$shifts_call_out)
+
+shiftfocus$ogshowrate = shiftfocus$shifts_worked / shiftfocus$total_shifts_claimed
+shiftfocus$newshowrate = shiftfocus$shifts_worked / (shiftfocus$shifts_worked + shiftfocus$shifts_call_out)
+
+shiftworkers$ogshowrate = shiftworkers$shifts_worked / shiftworkers$total_shifts_claimed
+shiftworkers$newshowrate = shiftworkers$shifts_worked / (shiftworkers$shifts_worked + shiftworkers$shifts_call_out)
+
+shiftfocusworkers$ogshowrate = shiftfocusworkers$shifts_worked / shiftfocusworkers$total_shifts_claimed
+shiftfocusworkers$newshowrate = shiftfocusworkers$shifts_worked / (shiftfocusworkers$shifts_worked + shiftfocusworkers$shifts_call_out)
+
+#wshiftratio: guaranteed shifts worked / total shifts worked 
+#cancelratio: total shifts cancelled by nurse / shifts cancelled by facility
+#new cancel ratio calculation: if number is inf (positive amount of shifts cancelled and 0 
+#fac cancelled shifts), calculation will just go to the the total amount of shifts cancelled by
+#the nurse. If the cancel ratio comes out to 0 AND there are 0 fac cancelled shifts (case where 0/0) #there will be an NA since it is not useful for them to be measured
+shift$wshiftratio = shift$guaranteed_shifts_worked / shift$shifts_worked
+shift$cancelratio = (shift$shifts_call_out + shift$shifts_caregiver_cancel + shift$shifts_unscheduled) / shift$fac_cancelled_shift 
+shift$cancelratio[is.infinite(shift$cancelratio)] = shift$shifts_call_out + shift$shifts_caregiver_cancel + shift$shifts_unscheduled
+shift$cancelratio[shift$cancelratio == 0 & shift$fac_cancelled_shift == 0] = NA
+
+shiftfocus$wshiftratio = shiftfocus$guaranteed_shifts_worked / shiftfocus$shifts_worked
+shiftfocus$cancelratio = (shiftfocus$shifts_call_out + shiftfocus$shifts_caregiver_cancel + shiftfocus$shifts_unscheduled) / shiftfocus$fac_cancelled_shift
+shiftfocus$cancelratio[is.infinite(shiftfocus$cancelratio)] = shiftfocus$shifts_call_out + shiftfocus$shifts_caregiver_cancel + shiftfocus$shifts_unscheduled
+shiftfocus$cancelratio[shiftfocus$cancelratio == 0 & shiftfocus$fac_cancelled_shift == 0] = NA
+
+shiftworkers$wshiftratio = shiftworkers$guaranteed_shifts_worked / shiftworkers$shifts_worked
+shiftworkers$cancelratio = (shiftworkers$shifts_call_out + shiftworkers$shifts_caregiver_cancel + shiftworkers$shifts_unscheduled) / shiftworkers$fac_cancelled_shift
+shiftworkers$cancelratio[is.infinite(shiftworkers$cancelratio)] = shiftworkers$shifts_call_out + shiftworkers$shifts_caregiver_cancel + shiftworkers$shifts_unscheduled
+shiftworkers$cancelratio[shiftworkers$cancelratio == 0 & shiftworkers$fac_cancelled_shift == 0] = NA
+
+shiftfocusworkers$wshiftratio = shiftfocusworkers$guaranteed_shifts_worked / shiftfocusworkers$shifts_worked
+shiftfocusworkers$cancelratio = (shiftfocusworkers$shifts_call_out + shiftfocusworkers$shifts_caregiver_cancel + shiftfocusworkers$shifts_unscheduled) / shiftfocusworkers$fac_cancelled_shift
+shiftfocusworkers$cancelratio[is.infinite(shiftfocusworkers$cancelratio)] = shiftfocusworkers$shifts_call_out + shiftfocusworkers$shifts_caregiver_cancel + shiftfocusworkers$shifts_unscheduled
+shiftfocusworkers$cancelratio[shiftfocusworkers$cancelratio == 0 & shiftfocusworkers$fac_cancelled_shift == 0] = NA
+
+#totalcancel: total shifts cancelled by the nurses 
+shift$totalcancel = shift$shifts_call_out + shiftworkers$shifts_caregiver_cancel + shift$shifts_unscheduled
+shiftfocus$totalcancel = shiftfocus$shifts_call_out + shiftfocus$shifts_caregiver_cancel + shiftfocus$shifts_unscheduled
+shiftworkers$totalcancel = shiftworkers$shifts_call_out + shiftworkers$shifts_caregiver_cancel + shiftworkers$shifts_unscheduled
+shiftfocusworkers$totalcancel = shiftfocusworkers$shifts_call_out + shiftfocusworkers$shifts_caregiver_cancel + shiftfocusworkers$shifts_unscheduled
+
+#termination: Boolean, marks whether nurse was terminated or not 
+shift$termination = shift$worker_status == "TERMINATED"
+shiftfocus$termination = shiftfocus$worker_status == "TERMINATED"
+shiftworkers$termination = shiftworkers$worker_status == "TERMINATED"
+shiftfocusworkers$termination = shiftfocusworkers$worker_status == "TERMINATED"
+```
+

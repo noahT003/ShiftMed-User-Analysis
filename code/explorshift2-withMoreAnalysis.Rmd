@@ -1,0 +1,276 @@
+---
+title: "exploring"
+author: "Noah Thomas"
+date: "2026-01-26"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+shift = read.csv("Bucknell_ShiftMed_Data_File.csv", header = TRUE)
+library(tidyverse)
+library(patchwork)
+popfocus = c("Philadelphia-Wilmington-Atlantic City PA-NJ-DE-MD CMSA", "Washington-Baltimore DC-MD-VA-WV CMSA", "Pittsburgh PA MSA", "St. Louis MO-IL MSA", "New York-Northern New Jersey-Long Island NY-NJ-CT-PA")
+typefocus = c("CNA","LPN","RN","GNA","STNA")
+smallshift = shift[shift$nurse_type %in% typefocus, ]
+shiftfocus = smallshift[smallshift$nurse_msa %in% popfocus, ]
+shiftworkers = shift[shift$shifts_worked > 0, ]
+shiftfocusworkers = shiftfocus[shiftfocus$shifts_worked > 0, ]
+shift$ogshowrate = shift$shifts_worked / shift$total_shifts_claimed
+shift$newshowrate = shift$shifts_worked / (shift$shifts_worked + shift$shifts_call_out)
+shiftfocus$ogshowrate = shiftfocus$shifts_worked / shiftfocus$total_shifts_claimed
+shiftfocus$newshowrate = shiftfocus$shifts_worked / (shiftfocus$shifts_worked + shiftfocus$shifts_call_out)
+shiftworkers$ogshowrate = shiftworkers$shifts_worked / shiftworkers$total_shifts_claimed
+shiftworkers$newshowrate = shiftworkers$shifts_worked / (shiftworkers$shifts_worked + shiftworkers$shifts_call_out)
+shiftfocusworkers$ogshowrate = shiftfocusworkers$shifts_worked / shiftfocusworkers$total_shifts_claimed
+shiftfocusworkers$newshowrate = shiftfocusworkers$shifts_worked / (shiftfocusworkers$shifts_worked + shiftfocusworkers$shifts_call_out)
+```
+
+```{r}
+colSums(is.na(shift)) / dim(shift)[1] * 100
+```
+```{r}
+ggplot(shift, aes(x = worker_status)) + geom_bar()
+
+```
+```{r}
+count(shift, worker_status)
+```
+
+```{r}
+ggplot(shift, aes(x = claimed_shift_2026, fill = claimed_shift_2026)) + geom_bar(na.rm = TRUE) + scale_fill_manual(values = c("red3", "green"))
+```
+
+```{r}
+prop.table(table(shift$claimed_shift_2026))
+```
+```{r}
+ggplot(shift, aes(x = shift$nurse_type)) + geom_bar()
+```
+
+```{r}
+table(shift$nurse_type)
+```
+```{r}
+ggplot(shift, aes(x = total_shifts_claimed_prior_to_2025, y = total_shifts_worked_prior_to_2025, color = worker_status)) + geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "green") +
+  geom_smooth(se = FALSE)
+```
+```{r}
+shift$first = as.Date(shift$install_date, format = "%m/%d/%Y")
+shift$last = as.Date(shift$first_shift_claimed_on_platform, format = "%m/%d/%Y") #flipped to available next
+shift$time_diff = as.numeric(shift$last - shift$first)
+
+shift$first2 = as.Date(shift$flipped_to_available, format = "%m/%d/%Y")
+shift$last2 = as.Date(shift$first_shift_claimed_on_platform, format = "%m/%d/%Y")
+shift$time_diff2 = as.numeric(shift$last2 - shift$first2)
+
+#shift$first3 = as.Date(shift$intall_date, format = "%m/%d/%Y")
+#shift$last3 = as.Date(shift$first_shift_claimed_on_platform, format = "%m/%d/%Y")
+shift$time_diff3 = as.numeric(shift$first2 - shift$first)
+```
+
+```{r}
+ggplot(shift, aes(x = time_diff3)) + geom_histogram(binwidth = 50) + ggplot(shift, aes(x = time_diff)) + geom_histogram(binwidth = 50)
+```
+
+
+```{r}
+ggplot(shift, aes(x = time_diff2)) + geom_histogram(binwidth = 50)
+```
+
+```{r}
+ggplot(shift, aes(x = shift$time_diff)) + geom_histogram(binwidth = 50)
+```
+```{r}
+ggplot(shift, aes(y = shift$avg_distance_between_hcp_and_facility_worked_shifts, x = shift$total_shifts_claimed)) + geom_point(alpha = 0.5)
+```
+```{r}
+ggplot(shift, aes(x = shift$shifts_worked)) + geom_histogram(binwidth = 25)
+```
+```{r}
+table(shift$shifts_worked)
+```
+almost 1/3 never worked a shift... over 1/3 have only worked 1- 5 shifts... the other 1/3 have worked 6+ shifts
+
+```{r}
+ggplot(shift, aes(x = shift$total_shifts_claimed)) + geom_histogram(binwidth = 25)
+```
+```{r}
+table(shift$total_shifts_claimed)
+```
+more than 2/5 claimed 0 - 5 shifts. ~3/5 claimed 6+ shifts. yet only 1/3 worked 6+ shifts...
+
+```{r}
+ggplot(shift, aes(x = shift$shifts_caregiver_cancel, fill = shift$claimed_shift_2026)) + geom_histogram(position = "dodge", bins = 5)
+```
+```{r}
+ggplot(shift, aes(x = shift$shifts_unscheduled, fill = shift$claimed_shift_2026)) + geom_histogram(position = "dodge", bins = 5)
+```
+```{r}
+bigloc = sort(table(shift$nurse_msa), decreasing = TRUE)[1:5]
+bigloc
+```
+```{r}
+bigtype = sort(table(shift$nurse_type), decreasing = TRUE)[1:5]
+bigtype
+```
+
+
+```{r}
+barplot(bigtype)
+```
+```{r}
+shift$wshiftratio = shift$guaranteed_shifts_worked / shift$shifts_worked
+shift$cancelratio = (shift$shifts_call_out + shift$shifts_caregiver_cancel + shift$shifts_unscheduled) / shift$fac_cancelled_shift #total shifts cancelled / total shifts facs cancelled
+```
+
+```{r}
+ggplot(shift, aes(x = wshiftratio)) + geom_histogram(na.rm = TRUE, binwidth = 0.025)
+```
+```{r}
+ggplot(shift, aes(x = cancelratio)) + geom_histogram(na.rm = TRUE) + scale_x_continuous(limits = c(-1, 25))
+```
+```{r}
+sum(shift$cancelratio <= 1, na.rm = TRUE)
+sum(shift$wshiftratio >= 0.5, na.rm = TRUE)
+9674 / 22843
+```
+9674 people had more fac cancelled shifts than shifts cancelled of their own accord (42.3% of workers)
+1452 people had half of their total shifts be guaranteed shifts
+
+```{r}
+shiftfocus$cancelratio = (shiftfocus$shifts_call_out + shiftfocus$shifts_caregiver_cancel + shiftfocus$shifts_unscheduled) / shiftfocus$fac_cancelled_shift
+shiftworkers$cancelratio = (shiftworkers$shifts_call_out + shiftworkers$shifts_caregiver_cancel + shiftworkers$shifts_unscheduled) / shiftworkers$fac_cancelled_shift
+sum(shiftfocus$cancelratio <= 1, na.rm = TRUE)
+sum(shiftworkers$cancelratio <= 1, na.rm = TRUE)
+4350/9474
+6624/15725
+```
+```{r}
+shiftfocus$wshiftratio = shiftfocus$guaranteed_shifts_worked / shiftfocus$shifts_worked
+shiftworkers$wshiftratio = shiftworkers$guaranteed_shifts_worked / shiftworkers$shifts_worked
+sum(shiftfocus$wshiftratio >= 0.5, na.rm = TRUE)
+sum(shiftworkers$wshiftratio >= 0.5, na.rm = TRUE)
+```
+
+
+```{r}
+ggplot(shiftfocus, aes(x = total_shifts_claimed_prior_to_2025, y = total_shifts_worked_prior_to_2025, color = worker_status)) + geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "green") +
+  geom_smooth(se = FALSE)
+```
+```{r}
+ggplot(shiftfocus, aes(x = avg_distance_between_hcp_and_facility_claimed_shifts)) + geom_histogram(bins = 15) + scale_x_continuous(limits = c(-1, 500))  + ggplot(shift, aes(x = avg_distance_between_hcp_and_facility_claimed_shifts)) + geom_histogram(bins = 15) + scale_x_continuous(limits = c(-1, 500)) 
+```
+
+```{r}
+fivenum(shiftfocus$avg_distance_between_hcp_and_facility_claimed_shifts)
+fivenum(shift$avg_distance_between_hcp_and_facility_claimed_shifts)
+```
+on the more focused group nurses are a little bit closer
+
+```{r}
+ggplot(shiftfocus, aes(y = avg_distance_between_hcp_and_facility_worked_shifts, x = shifts_worked, color = nurse_type)) + geom_point(alpha = 0.5)
+```
+```{r}
+
+num_cols <- shiftfocus %>%
+  select(where(is.numeric)) %>%
+  names()
+
+shiftfocus3 <- shiftfocus %>%
+  filter(
+    if_all(
+      all_of(num_cols),
+      ~ . >= quantile(., 0.01, na.rm = TRUE) - 
+           1.5 * IQR(., na.rm = TRUE) &
+        . <= quantile(., 0.99, na.rm = TRUE) + 
+           1.5 * IQR(., na.rm = TRUE)
+    )
+  )
+#should we remove outliers?
+
+```
+
+
+```{r}
+shift$ogshowrate = shift$shifts_worked / shift$total_shifts_claimed
+shift$newshowrate = shift$shifts_worked / (shift$shifts_worked + shift$shifts_call_out)
+```
+
+```{r}
+ggplot(shift, aes(x = ogshowrate)) + geom_histogram() + ggplot(shift, aes(x = newshowrate)) + geom_histogram()
+```
+
+```{r}
+summary(shift$ogshowrate)
+summary(shift$newshowrate)
+```
+newshowrate = higher because nurses can see higher numbers and that makes them feel good??? is this sacrificing accuracy
+
+```{r}
+shiftfocus$ogshowrate = shiftfocus$shifts_worked / shiftfocus$total_shifts_claimed
+shiftfocus$newshowrate = shiftfocus$shifts_worked / (shiftfocus$shifts_worked + shiftfocus$shifts_call_out)
+summary(shiftfocus$ogshowrate)
+summary(shiftfocus$newshowrate)
+```
+```{r}
+ggplot(shiftfocus, aes(x = ogshowrate)) + geom_histogram() + ggplot(shiftfocus, aes(x = newshowrate)) + geom_histogram()
+```
+```{r}
+ggplot(shift, aes(x = shifts_call_out)) + geom_histogram()
+```
+```{r}
+summary(shift$shifts_call_out)
+summary(shiftworkers$shifts_call_out)
+summary(shiftfocus$shifts_call_out)
+summary(shiftfocusworkers$shifts_call_out)
+```
+```{r}
+shiftworkers$ogshowrate = shiftworkers$shifts_worked / shiftworkers$total_shifts_claimed
+shiftworkers$newshowrate = shiftworkers$shifts_worked / (shiftworkers$shifts_worked + shiftworkers$shifts_call_out)
+summary(shiftworkers$ogshowrate)
+summary(shiftworkers$newshowrate)
+```
+```{r}
+summary(shift$ogshowrate)
+summary(shiftworkers$ogshowrate)
+summary(shiftfocus$ogshowrate)
+summary(shiftfocusworkers$ogshowrate)
+```
+```{r}
+summary(shift$newshowrate)
+summary(shiftworkers$newshowrate)
+summary(shiftfocus$newshowrate)
+summary(shiftfocusworkers$newshowrate)
+```
+shiftfocus is representative of the population (shift). shiftworkers seems to have the highest numbers of all the slices, seemingly due to the fact it is literally the workers who have actually showed up. shiftfocusworkers is not far off. the question is: how can we get those in the population to actually work?
+
+```{r}
+ggplot(shiftworkers, aes(x = ogshowrate)) + geom_histogram() + ggplot(shiftworkers, aes(x = newshowrate)) + geom_histogram()
+```
+graph shows ogshowrate for shiftworkers as BIMODAL (0.5 , 1)
+
+```{r}
+summary(shiftworkers$ogshowrate [shiftworkers$nurse_type == "CNA" | shiftworkers$nurse_type == "STNA" | shiftworkers$nurse_type == "RN" | shiftworkers$nurse_type == "LPN" | shiftworkers$nurse_type == "GNA"])
+summary(shiftworkers$newshowrate [shiftworkers$nurse_type == "CNA" | shiftworkers$nurse_type == "STNA" | shiftworkers$nurse_type == "RN" | shiftworkers$nurse_type == "LPN" | shiftworkers$nurse_type == "GNA"])
+```
+```{r}
+ggplot(shiftfocus, aes(x = avg_distance_between_hcp_and_facility_claimed_shifts)) + geom_histogram() + ggplot(shiftfocus, aes(x = avg_distance_between_hcp_and_facility_worked_shifts)) + geom_histogram()
+```
+```{r}
+summary(shift$avg_distance_between_hcp_and_facility_claimed_shifts)
+summary(shiftfocus$avg_distance_between_hcp_and_facility_claimed_shifts)
+summary(shiftworkers$avg_distance_between_hcp_and_facility_claimed_shifts)
+```
+
+```{r}
+summary(shift$avg_distance_between_hcp_and_facility_worked_shifts)
+summary(shiftfocus$avg_distance_between_hcp_and_facility_worked_shifts)
+summary(shiftworkers$avg_distance_between_hcp_and_facility_worked_shifts)
+```
+

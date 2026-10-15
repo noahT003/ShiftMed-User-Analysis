@@ -1,0 +1,198 @@
+---
+title: "newshiftdata"
+author: "Noah Thomas"
+date: "2026-03-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+shift2nurses = read.csv("newshiftmedNurses.csv", header = TRUE) #read in files
+shift2facilities = read.csv("newshiftmedFacilities.csv", header = TRUE)
+shift2nursesfacilities = read.csv("newshiftmedNurses&Facilities.csv", header = TRUE)
+shift2nursesmonthly = read.csv("newshiftmedNursesMonthly.csv", header = TRUE)
+
+shift2nurses$avg_wage_shifts_worked_2023 = as.numeric(gsub("\\$", "", shift2nurses$avg_wage_shifts_worked_2023))
+shift2nurses$avg_wage_shifts_worked_2024 = as.numeric(gsub("\\$", "", shift2nurses$avg_wage_shifts_worked_2024))
+shift2nurses$avg_wage_shifts_worked_2025 = as.numeric(gsub("\\$", "", shift2nurses$avg_wage_shifts_worked_2025))
+
+shift2facilities$avg_wage_shifts_posted_2023 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_posted_2023))
+shift2facilities$avg_wage_shifts_posted_2024 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_posted_2024))
+shift2facilities$avg_wage_shifts_posted_2025 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_posted_2025))
+shift2facilities$avg_wage_shifts_worked_2023 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_worked_2023))
+shift2facilities$avg_wage_shifts_worked_2024 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_worked_2024))
+shift2facilities$avg_wage_shifts_worked_2025 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_worked_2025))
+
+shift2nursesfacilities$avg_wage_shifts_worked_2023 = as.numeric(gsub("\\$", "", shift2nursesfacilities$avg_wage_shifts_worked_2023))
+shift2nursesfacilities$avg_wage_shifts_worked_2024 = as.numeric(gsub("\\$", "", shift2nursesfacilities$avg_wage_shifts_worked_2024))
+shift2nursesfacilities$avg_wage_shifts_worked_2025 = as.numeric(gsub("\\$", "", shift2nursesfacilities$avg_wage_shifts_worked_2025))
+
+```
+```{r}
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+```
+
+
+```{r}
+shift2nurses$worked = ifelse(shift2nurses$total_shifts_worked_2023 + shift2nurses$total_shifts_worked_2024 + shift2nurses$total_shifts_worked_2025 > 0, TRUE, FALSE)
+
+shift2nurses$claimed = ifelse(shift2nurses$total_shifts_claimed_2023 + shift2nurses$total_shifts_claimed_2024 + shift2nurses$total_shifts_claimed_2025 > 0, TRUE, FALSE)
+
+shift2nurses$cancelratio = (shift2nurses$total_hcp_cancelled_shifts_2023 + shift2nurses$total_hcp_cancelled_shifts_2024 + shift2nurses$total_hcp_cancelled_shifts_2025) / (shift2nurses$total_shifts_fac_cancel_2023 + shift2nurses$total_shifts_fac_cancel_2024 + shift2nurses$total_shifts_fac_cancel_2025)
+shift2nurses$cancelratio[is.infinite(shift2nurses$cancelratio)] = shift2nurses$total_hcp_cancelled_shifts_2023 + shift2nurses$total_hcp_cancelled_shifts_2024 + shift2nurses$total_hcp_cancelled_shifts_2025
+shift2nurses$cancelratio[shift2nurses$cancelratio == 0 & (shift2nurses$total_shifts_fac_cancel_2023 + shift2nurses$total_shifts_fac_cancel_2024 + shift2nurses$total_shifts_fac_cancel_2025 == 0)] = NA
+
+shift2nurses$newshowrate2023 = shift2nurses$total_shifts_worked_2023 / (shift2nurses$total_shifts_worked_2023 + shift2nurses$total_hcp_cancelled_shifts_2023)
+
+shift2nurses$newshowrate2024 = shift2nurses$total_shifts_worked_2024 / (shift2nurses$total_shifts_worked_2024 + shift2nurses$total_hcp_cancelled_shifts_2024)
+
+shift2nurses$newshowrate2025 = shift2nurses$total_shifts_worked_2025 / (shift2nurses$total_shifts_worked_2025 + shift2nurses$total_hcp_cancelled_shifts_2025)
+
+shift2nurses_workers = shift2nurses[shift2nurses$total_shifts_worked_2023 + shift2nurses$total_shifts_worked_2024 + shift2nurses$total_shifts_worked_2025 > 0, ]
+
+
+```
+
+```{r}
+#sanity checks... everything looks good but nursesmonthly looks to have some nurses missing. are the missing nurses not "key" nurses?
+length(unique(shift2nurses$caregiver_id))
+length(unique(shift2facilities$facility_id))
+length(unique(shift2nursesfacilities$caregiver_id))
+length(unique(shift2nursesfacilities$facility_id))
+length(unique(shift2nursesmonthly$caregiver_id))
+```
+```{r}
+summary(shift2nurses$worked)
+8111/14226
+```
+only 57% of nurses even worked a shift... weird
+```{r}
+summary(shift2nurses$claimed)
+10849 / 14226
+```
+76% nurses claimed a shift... so almost 1/4 of the data are people who installed but never used the app. It is worthy to note this 1/4 is prob insigificant and not the people who we want to try to get to use the app because they most likely never sought to use the app extensively in the first place
+
+```{r}
+length(unique(shift2nurses$nurse_msa))
+head(sort(table(shift2nurses$nurse_msa), decreasing = TRUE))
+```
+most top MSAs are the same, but chicago is a new one
+```{r}
+table(shift2nurses$worker_status)
+```
+```{r}
+summary(shift2nurses$avg_wage_shifts_worked_2023)
+summary(shift2nurses$avg_wage_shifts_worked_2024)
+summary(shift2nurses$avg_wage_shifts_worked_2025)
+```
+2025 looks to be higher on average, but its max is much lower
+
+```{r}
+ggplot(shift2nurses_workers, aes(y = total_shifts_claimed_2025)) + geom_boxplot()
+```
+plots are still nasty. will need to find good and meaningful slices
+
+```{r}
+length(unique(shift2facilities$facility_msa))
+length(unique(shift2facilities$facility_id))
+head(sort(table(shift2facilities$facility_msa), decreasing = TRUE))
+```
+this makes sense; the msas with the most facilities have the most nurses
+
+```{r}
+shift2facilities$sameposts = ifelse((shift2facilities$total_shifts_posted_2023 == shift2facilities$total_shifts_posted_2024) & (shift2facilities$total_shifts_posted_2024 == shift2facilities$total_shifts_posted_2025), TRUE, FALSE)
+
+summary(shift2facilities$sameposts)
+#count(shift2facilities, sameposts)
+```
+all facilities have the same amount of shifts posted every year. this seems a little weird (is this an error on shiftmed's part?)
+
+```{r}
+shift2facilities[order(-shift2facilities$total_shifts_worked_2023), ][1:5, c("total_shifts_worked_2023", "facility_msa")]
+shift2facilities[order(-shift2facilities$total_shifts_worked_2024), ][1:5, c("total_shifts_worked_2024", "facility_msa")]
+shift2facilities[order(-shift2facilities$total_shifts_worked_2025), ][1:5, c("total_shifts_worked_2025", "facility_msa")]
+```
+most worked at facilities align with the most popular nurse / facility msas, except for buffalo and rochester in 2023. Facility 2033 in st louis looks to be popping tho
+
+```{r}
+ggplot(shift2nursesfacilities, aes(x = avg_wage_shifts_worked_2023)) + geom_boxplot() 
+```
+```{r}
+ggplot(shift2nursesfacilities, aes(x = avg_wage_shifts_worked_2024)) + geom_boxplot()
+```
+```{r}
+ggplot(shift2nursesfacilities, aes(x = avg_wage_shifts_worked_2025)) + geom_boxplot()
+```
+On average, 2025 looks to be the best, but its low outliers look to be the worst. 2023 is the worst overall. Growth with respect to wage has happened for facilities
+
+```{r}
+shift2nursesmonthly %>%
+  group_by(month_date) %>%
+  summarise(total = sum(total_shifts_worked, na.rm = TRUE)) %>%
+  arrange(desc(total))
+```
+```{r}
+shift2nursesmonthly %>%
+  group_by(month_date) %>%
+  summarise(total = sum(total_shifts_claimed, na.rm = TRUE)) %>%
+  arrange(desc(total))
+```
+amount claimed in a month looks to be an okay predictor for how much shifts are actually worked. I dont see a theme in the months (i guess you could say more nurses worked during summer months?) but definitely as years have passed more nurses have worked
+
+```{r}
+ggplot(shift2nurses[shift2nurses$total_shifts_worked_2024 > 5 & shift2nurses$total_shifts_worked_2025 > 5, ], aes(x = total_shifts_worked_2024, y = total_shifts_worked_2025)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+```
+The more shifts you worked in 2024, the more you were likely to work in 2025. could be doe to simply more users in 2025
+
+```{r}
+tempnurse <- shift2nurses %>%
+  pivot_longer(cols = c(newshowrate2023, newshowrate2024, newshowrate2025),
+               names_to = "Year",
+               values_to = "ShowRate")
+
+
+ggplot(tempnurse, aes(x = ShowRate, fill = Year)) + geom_histogram(aes(y = after_stat(density)), position = "dodge")
+```
+
+interesting.. show rates look to be close but 2023 has the highest proportion of workers with 0% show rate but also the one with the highest proportion of workers with 100% show rate
+
+```{r}
+sum(shift2nurses$cancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift2nurses$cancelratio))
+```
+ interpretation: of the nurses that have had a shift cancelled by themselves and by the facility at least once from 2023 - 2025, 65.1% have had the facility cancel on them more than or just as much as they have canceled shifts themselves
+an observed barrier: there is no variable part of the facility dataframe that could lead to why facilities cancel on nurses
+
+```{r}
+shift2facilities$popularityratio = (shift2facilities$total_shifts_worked_2023 + shift2facilities$total_shifts_worked_2024 + shift2facilities$total_shifts_worked_2025) / (shift2facilities$total_shifts_posted_2023 + shift2facilities$total_shifts_posted_2024 + shift2facilities$total_shifts_posted_2025)
+
+
+```
+
+```{r}
+ggplot(shift2facilities[shift2facilities$total_shifts_worked_2023 + shift2facilities$total_shifts_worked_2024 + shift2facilities$total_shifts_worked_2025 > 0, ], aes(x = popularityratio)) + geom_histogram(bins = 100)
+```
+```{r}
+ggplot(shift2facilities, aes(y = popularityratio, x = shift2facilities$avg_wage_shifts_posted_2025)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+```
+```{r}
+nrow(shift2facilities[shift2facilities$total_shifts_worked_2023 + shift2facilities$total_shifts_worked_2024 + shift2facilities$total_shifts_worked_2025 <= 5, ]) / nrow(shift2facilities)
+
+```
+ almost 1/3 of facilities had 5 of less nurses work there in total from 2023 - 2025
+ 
+```{r}
+ggplot(shift2facilities, aes(x = avg_wage_shifts_worked_2024, y = avg_wage_shifts_worked_2025)) + geom_point() + geom_smooth(method = "lm", se = FALSE) + geom_abline(intercept = 0, slope = 1, color = 'red') 
+```
+```{r}
+ggplot(shift2nurses, aes(x = avg_wage_shifts_worked_2024, y = avg_wage_shifts_worked_2025)) + geom_point() + geom_smooth(method = "lm", se = FALSE) + geom_abline(intercept = 0, slope = 1, color = 'red')
+```
+ 
+ wages have stayed stagnant overtime, which makes sense
+ 
+ problems of interest: money? guaranteed shifts and bundle shifts? difference in workers with time? time?

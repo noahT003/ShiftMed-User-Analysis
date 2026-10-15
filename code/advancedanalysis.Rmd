@@ -1,0 +1,503 @@
+---
+title: "focusedanalysis"
+author: "Noah Thomas"
+date: "2026-02-12"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+shift = read.csv("Bucknell_ShiftMed_Data_File.csv", header = TRUE) #read in file
+library(tidyverse)  #both libraries that are useful... tidyverse includes dplyr and ggplot
+library(patchwork)
+#top 5 nurse msas
+
+shift <- shift %>%
+  mutate(quantile_worked_shifts = case_when(
+    shifts_worked <= quantile(shifts_worked, 0.3) ~ "0-30",
+    shifts_worked <= quantile(shifts_worked, 0.4) & shifts_worked > quantile(shifts_worked, 0.3) ~ "30-40",
+    shifts_worked <= quantile(shifts_worked, 0.5) & shifts_worked > quantile(shifts_worked, 0.4) ~ "40-50",
+    shifts_worked <= quantile(shifts_worked, 0.6) & shifts_worked > quantile(shifts_worked, 0.5) ~ "50-60",
+    shifts_worked <= quantile(shifts_worked, 0.7) & shifts_worked > quantile(shifts_worked, 0.6) ~ "60-70",
+    shifts_worked <= quantile(shifts_worked, 0.8) & shifts_worked > quantile(shifts_worked, 0.7) ~ "70-80",
+    shifts_worked <= quantile(shifts_worked, 0.9) & shifts_worked > quantile(shifts_worked, 0.8) ~ "80-90",
+    shifts_worked <= quantile(shifts_worked, 1) & shifts_worked > quantile(shifts_worked, 0.9) ~ "90-100"))
+count(shift, quantile_worked_shifts)
+
+
+popfocus = c("Philadelphia-Wilmington-Atlantic City PA-NJ-DE-MD CMSA", "Washington-Baltimore DC-MD-VA-WV CMSA", "Pittsburgh PA MSA", "St. Louis MO-IL MSA", "New York-Northern New Jersey-Long Island NY-NJ-CT-PA")
+#type 5 nurse types
+typefocus = c("CNA","LPN","RN","GNA","STNA")
+typefocus2 = c("CNA","LPN","RN")
+typefocus3 = c("CNA","LPN","RN", "GNA")
+#forming shiftfocus: subset of shift with the top 5 msas and top 5 nurse types
+smallshift = shift[shift$nurse_type %in% typefocus, ]
+shiftfocus = smallshift[smallshift$nurse_msa %in% popfocus, ]
+coolshift = shift[shift$nurse_type %in% typefocus3, ]
+#shiftfocus = shiftfocus[shiftfocus$worker_status != "TERMINATED", ]
+
+#shiftworkers: subset of shift with only nurses who have worked at least one shift
+shiftworkers = shift[shift$shifts_worked > 0, ]
+
+
+#shiftfocusworkers: combination of both shiftfocus and shiftworkers
+shiftfocusworkers = shiftfocus[shiftfocus$shifts_worked > 0, ]
+
+#shiftmorefocus: shiftfocus with STNAs due to their small number
+shiftmorefocus = shiftfocus[shiftfocus$nurse_type != "STNA", ]
+
+#below: various variables for each subset
+#ogshowrate: original measure of show rate described by stakeholders
+#newshowrate: new measure of show rate described by stakeholders
+shift$ogshowrate = shift$shifts_worked / shift$total_shifts_claimed
+shift$newshowrate = shift$shifts_worked / (shift$shifts_worked + shift$shifts_call_out)
+
+smallshift$newshowrate = smallshift$shifts_worked / (smallshift$shifts_worked + smallshift$shifts_call_out)
+
+shiftfocus$ogshowrate = shiftfocus$shifts_worked / shiftfocus$total_shifts_claimed
+shiftfocus$newshowrate = shiftfocus$shifts_worked / (shiftfocus$shifts_worked + shiftfocus$shifts_call_out)
+
+shiftworkers$ogshowrate = shiftworkers$shifts_worked / shiftworkers$total_shifts_claimed
+shiftworkers$newshowrate = shiftworkers$shifts_worked / (shiftworkers$shifts_worked + shiftworkers$shifts_call_out)
+
+smallshiftworkers$newshowrate = smallshiftworkers$shifts_worked / (smallshiftworkers$shifts_worked + smallshiftworkers$shifts_call_out)
+
+
+shiftfocusworkers$ogshowrate = shiftfocusworkers$shifts_worked / shiftfocusworkers$total_shifts_claimed
+shiftfocusworkers$newshowrate = shiftfocusworkers$shifts_worked / (shiftfocusworkers$shifts_worked + shiftfocusworkers$shifts_call_out)
+
+
+#wshiftratio: guaranteed shifts worked / total shifts worked 
+#cancelratio: total shifts cancelled by nurse / shifts cancelled by facility
+#new cancel ratio calculation: if number is inf (positive amount of shifts cancelled and 0 
+#fac cancelled shifts), calculation will just go to the the total amount of shifts cancelled by
+#the nurse. If the cancel ratio comes out to 0 AND there are 0 fac cancelled shifts (case where 0/0) #there will be an NA since it is not useful for them to be measured
+shift$wshiftratio = shift$guaranteed_shifts_worked / shift$shifts_worked
+shift$cancelratio = (shift$shifts_call_out + shift$shifts_caregiver_cancel + shift$shifts_unscheduled) / shift$fac_cancelled_shift 
+shift$cancelratio[is.infinite(shift$cancelratio)] = shift$shifts_call_out + shift$shifts_caregiver_cancel + shift$shifts_unscheduled
+shift$cancelratio[shift$cancelratio == 0 & shift$fac_cancelled_shift == 0] = NA
+
+shiftfocus$wshiftratio = shiftfocus$guaranteed_shifts_worked / shiftfocus$shifts_worked
+shiftfocus$cancelratio = (shiftfocus$shifts_call_out + shiftfocus$shifts_caregiver_cancel + shiftfocus$shifts_unscheduled) / shiftfocus$fac_cancelled_shift
+shiftfocus$cancelratio[is.infinite(shiftfocus$cancelratio)] = shiftfocus$shifts_call_out + shiftfocus$shifts_caregiver_cancel + shiftfocus$shifts_unscheduled
+shiftfocus$cancelratio[shiftfocus$cancelratio == 0 & shiftfocus$fac_cancelled_shift == 0] = NA
+
+shiftworkers$wshiftratio = shiftworkers$guaranteed_shifts_worked / shiftworkers$shifts_worked
+shiftworkers$cancelratio = (shiftworkers$shifts_call_out + shiftworkers$shifts_caregiver_cancel + shiftworkers$shifts_unscheduled) / shiftworkers$fac_cancelled_shift
+shiftworkers$cancelratio[is.infinite(shiftworkers$cancelratio)] = shiftworkers$shifts_call_out + shiftworkers$shifts_caregiver_cancel + shiftworkers$shifts_unscheduled
+shiftworkers$cancelratio[shiftworkers$cancelratio == 0 & shiftworkers$fac_cancelled_shift == 0] = NA
+
+shiftfocusworkers$wshiftratio = shiftfocusworkers$guaranteed_shifts_worked / shiftfocusworkers$shifts_worked
+shiftfocusworkers$cancelratio = (shiftfocusworkers$shifts_call_out + shiftfocusworkers$shifts_caregiver_cancel + shiftfocusworkers$shifts_unscheduled) / shiftfocusworkers$fac_cancelled_shift
+shiftfocusworkers$cancelratio[is.infinite(shiftfocusworkers$cancelratio)] = shiftfocusworkers$shifts_call_out + shiftfocusworkers$shifts_caregiver_cancel + shiftfocusworkers$shifts_unscheduled
+shiftfocusworkers$cancelratio[shiftfocusworkers$cancelratio == 0 & shiftfocusworkers$fac_cancelled_shift == 0] = NA
+
+#totalcancel: total shifts cancelled by the nurses 
+shift$totalcancel = shift$shifts_call_out + shiftworkers$shifts_caregiver_cancel + shift$shifts_unscheduled
+shiftfocus$totalcancel = shiftfocus$shifts_call_out + shiftfocus$shifts_caregiver_cancel + shiftfocus$shifts_unscheduled
+shiftworkers$totalcancel = shiftworkers$shifts_call_out + shiftworkers$shifts_caregiver_cancel + shiftworkers$shifts_unscheduled
+shiftfocusworkers$totalcancel = shiftfocusworkers$shifts_call_out + shiftfocusworkers$shifts_caregiver_cancel + shiftfocusworkers$shifts_unscheduled
+smallshiftworkers$totalcancel = smallshiftworkers$shifts_call_out + smallshiftworkers$shifts_caregiver_cancel + smallshiftworkers$shifts_unscheduled
+#termination: Boolean, marks whether nurse was terminated or not 
+shift$termination = shift$worker_status == "TERMINATED"
+shiftfocus$termination = shiftfocus$worker_status == "TERMINATED"
+shiftworkers$termination = shiftworkers$worker_status == "TERMINATED"
+shiftfocusworkers$termination = shiftfocusworkers$worker_status == "TERMINATED"
+
+
+smallshiftworkers = shiftworkers[shiftworkers$nurse_type %in% typefocus2, ]
+myfocus = smallshiftworkers[smallshiftworkers$worker_status == "AVAILABLE", ]
+
+```
+```{r}
+library(corrplot)
+```
+
+Question 1: Is there a difference in how the different types of nurses use the app? Do certain nurses perform better / show up to more shifts / etc.?
+```{r}
+count(myfocus, nurse_type)
+```
+```{r}
+count(shift, nurse_type)
+```
+
+
+```{r}
+ggplot(shiftfocus, aes(x = totalcancel, fill = nurse_type)) + geom_histogram(position = "dodge", bins = 10) 
+```
+ 
+ cnas make up most of cancelled shifts, but not by much
+ 
+```{r}
+count(shiftfocus, nurse_msa)
+```
+ 
+```{r}
+ggplot(shiftfocus, aes(x = totalcancel, fill = nurse_msa)) + geom_histogram(position = "fill", bins = 10) 
+```
+fairly consistent up until 100.
+```{r}
+ggplot(shiftfocus, aes(x = cancelratio, fill = nurse_type)) + geom_histogram(position = "dodge", bins = 10) + scale_x_continuous(limits = c(0, 10))
+```
+```{r}
+summary(shiftfocus$cancelratio[shiftfocus$nurse_type == "RN"])
+summary(shiftfocus$cancelratio[shiftfocus$nurse_type == "CNA"])
+```
+```{r}
+sum(shiftfocus$cancelratio[shiftfocus$nurse_type == "RN"] <= 1, na.rm = TRUE)
+sum(shiftfocus$cancelratio[shiftfocus$nurse_type == "CNA"] <= 1, na.rm = TRUE)
+968/sum(!is.na(shiftfocus$cancelratio[shiftfocus$nurse_type == "RN"]))
+1496/sum(!is.na(shiftfocus$cancelratio[shiftfocus$nurse_type == "CNA"]))
+```
+ much lower proportion of CNAs are getting their shifts cancelled by facilities... prob since they are lower level?
+ 
+Crazy Numbers!!!!!
+ 
+```{r}
+#sum(shift$cancelratio[shift$nurse_type == "CNA"] <= 1, na.rm = TRUE)
+2364/sum(!is.na(shift$cancelratio[shiftfocus$nurse_type == "RN"]))
+sum(shift$cancelratio[shift$nurse_type == "LPN"] <= 1, na.rm = TRUE) / sum(!is.na(shift$cancelratio[shift$nurse_type == "LPN"]))
+4166/sum(!is.na(shift$cancelratio[shiftfocus$nurse_type == "CNA"]))
+sum(shift$cancelratio[shift$nurse_type == "GNA"] <= 1, na.rm = TRUE) / sum(!is.na(shift$cancelratio[shift$nurse_type == "GNA"]))
+```
+ Similar!!!!
+```{r}
+sum(shift$cancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift$cancelratio))
+```
+ interpretation: of the nurses that have had a shift cancelled by themselves and by the facility at least once, 55.2% have had the facility cancel on them more than or just as much as they have canceled shifts themselves
+ 
+```{r}
+summary(shiftfocus$ogshowrate[shiftfocus$nurse_type == "RN"])
+summary(shiftfocus$ogshowrate[shiftfocus$nurse_type == "CNA"])
+summary(shiftfocus$ogshowrate[shiftfocus$nurse_type == "STNA"]) #much lower count than others
+summary(shiftfocus$ogshowrate[shiftfocus$nurse_type == "LPN"])
+summary(shiftfocus$ogshowrate[shiftfocus$nurse_type == "GNA"])
+```
+```{r}
+summary(shiftfocus$newshowrate[shiftfocus$nurse_type == "RN"])
+summary(shiftfocus$newshowrate[shiftfocus$nurse_type == "CNA"])
+summary(shiftfocus$newshowrate[shiftfocus$nurse_type == "STNA"]) #much lower count than others
+summary(shiftfocus$newshowrate[shiftfocus$nurse_type == "LPN"])
+summary(shiftfocus$newshowrate[shiftfocus$nurse_type == "GNA"])
+```
+```{r}
+summary(shift$newshowrate[shift$nurse_type == "RN"])
+summary(shift$newshowrate[shift$nurse_type == "CNA"])
+summary(shift$newshowrate[shift$nurse_type == "STNA"]) #much lower count than others
+summary(shift$newshowrate[shift$nurse_type == "LPN"])
+summary(shift$newshowrate[shift$nurse_type == "GNA"])
+```
+ 
+ RNs have a much better show rate, with the new show rate measure being rather impressive. GNAs and CNAs have disappointing show rates. All of these are most likely due to the role's importance ALL IN SHIFTFOCUS
+ 
+ in Shift, the story is the same. The RNs must be more motivated since their job is a higher position and gives them more money. We can see the higher the position, the better the show rate.
+ 
+```{r}
+shiftmorefocus$newshowrate = shiftmorefocus$shifts_worked / (shiftmorefocus$shifts_worked + shiftmorefocus$shifts_call_out)
+```
+```{r}
+geom_histogram(aes(y = after_stat(density)), binwidth = 1,
+    boundary = -0.5,
+    position = position_dodge(width = 0.8),
+    color = "black")
+
+geom_histogram(aes(y = after_stat(density)),position = "dodge", bins = 20, binwidth = 0.05)
+```
+ 
+```{r}
+ggplot(shiftmorefocus, aes(x = newshowrate, fill = nurse_type)) + geom_histogram(aes(y = after_stat(density)), binwidth = 0.075, position = "dodge",
+    color = "black") + labs(x = "New Show Rate", y = "Density of Each Nurse Type", fill = "Nurse Type") + ggtitle("Despite Most Nurses being CNA,\n Their Show Rate Looks to be the Worst") + theme_light() + scale_fill_brewer(palette = "Set2") + scale_x_continuous(labels = c("0%","25%","50%","75%","100%")) + theme(text = element_text(size = 15)) + theme_light()
+```
+```{r}
+count(shiftmorefocus, nurse_type)
+```
+
+```{r}
+ggplot(smallshift, aes(x = newshowrate, fill = nurse_type)) + geom_histogram(aes(y = after_stat(density)),position = "dodge", bins = 20, binwidth = 0.05) + labs(x = "New Show Rate", y = "Density of Each Nurse Type", fill = "Nurse Type") + ggtitle("Despite Most Nurses being CNA,\n Their Show Rate Looks to be the Worst") + theme_light() + scale_fill_brewer(palette = "Set2") + scale_x_continuous(labels = c("0%","25%","50%","75%","100%")) + theme(text = element_text(size = 15))
+```
+
+```{r}
+coolshift$yes2026 = as.integer(coolshift$claimed_shift_2026)
+```
+ 
+```{r}
+coolshift$workedIn2025 = ifelse(coolshift$shifts_worked == 0, 0, 1)
+```
+
+```{r}
+ggplot(coolshift, aes(x = workedIn2025, fill = nurse_type)) + geom_histogram(aes(y = after_stat(density)), binwidth = 1,
+    boundary = -0.5,
+    position = position_dodge(width = 0.8),
+    color = "black") + scale_x_continuous(labels = c("No", "Yes"), breaks = c(0, 1)) + theme_light() + scale_fill_brewer(palette = "Set2") +  labs(x = "Did a User Claim a Shift in 2025?", y = "Density of Each Nurse Type", fill = "Nurse Type") + ggtitle("RNs Look to be 2025's Best Users") + theme(text = element_text(size = 15))
+```
+ 
+```{r}
+ggplot(coolshift, aes(x = yes2026, fill = nurse_type)) + geom_histogram(aes(y = after_stat(density)), binwidth = 1,
+    boundary = -0.5,
+    position = position_dodge(width = 0.8),
+    color = "black") + scale_x_continuous(labels = c("No", "Yes"), breaks = c(0, 1)) + theme_light() + scale_fill_brewer(palette = "Set2") +  labs(x = "Did a User Claim a Shift in 2026?", y = "Density of Each Nurse Type", fill = "Nurse Type") + ggtitle("2025's Working Trends Carry on to 2026 So Far") + theme(text = element_text(size = 15))
+```
+ RN nurses just look to be better workers than CNA nurses. GNA and LPN look to be the same here
+ 
+ 
+```{r}
+ggplot(shiftmorefocus, aes(x = confirmed_shifts_claimed, y = shifts_worked, color = nurse_type)) + geom_point() + geom_smooth(method = "lm")
+```
+ 
+ Terminated workers definitely drive down the counts
+```{r}
+summary(shift$ogshowrate[shift$worker_status == "TERMINATED"])
+count(shift, worker_status)
+```
+ 
+```{r}
+ggplot(shift, aes(x = newshowrate, fill = termination)) + geom_histogram(aes(y = after_stat(density)),position = "dodge", bins = 10)
+```
+terminated nurses seemed to show up to work less
+
+
+```{r}
+ggplot(shift, aes(x = wshiftratio, fill = termination)) + geom_histogram(aes(y = after_stat(density)),position = "dodge", bins = 10)
+```
+ similar between both
+```{r}
+sum(shift[shift$termination == TRUE, ]$cancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift[shift$termination == TRUE, ]$cancelratio))
+sum(shift[shift$termination == FALSE, ]$cancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift[shift$termination == FALSE, ]$cancelratio))
+```
+
+of the nurses that were not terminated that have had a shift cancelled by themselves and by the facility at least once, 56.2% have had the facility cancel on them more than or just as much as they have canceled shifts themselves
+terminated nurses most likely cancelled more shifts
+
+```{r}
+ggplot(shift, aes(x = totalcancel, fill = termination)) + geom_histogram(aes(y = after_stat(density)),position = "dodge", bins = 10)
+```
+```{r}
+summary(shift[shift$termination == TRUE, ]$totalcancel)
+summary(shift[shift$termination == FALSE, ]$totalcancel)
+```
+i would be correct
+
+
+```{r}
+ggplot(shiftfocus, aes(x = totalcancel, y = shifts_worked, color = nurse_type)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+```
+STNA look to be good workers; visualization as a whole looks to have very little correlation. 
+CNA: for every shift cancelled, ~1 shift is worked
+RN: for every shift cancelled, ~1.5 shifts are worked
+
+```{r}
+shift[shift$shifts_worked == 0, ]
+```
+```{r}
+ggplot(smallshiftworkers, aes(x = (shifts_call_out + shifts_c, y = shifts_unscheduled, color = nurse_type)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+```
+
+```{r}
+count(shift, nurse_type)
+#count(shift[shift$worker_status == "AVAILABLE", ], nurse_type)
+count(shift[shift$shifts_worked > 0, ], nurse_type)
+```
+```{r}
+6829/10304 #CNA
+3600/5406 #LPN
+3700/4821 #RN
+```
+ 77% of RN nurses have worked at least 1 shift
+ 
+```{r}
+head(myfocus) 
+```
+ purpose of myfocus: all RN, LPN, and CNA nurses that are available and have worked at least one shift. this is the important piece of the population
+ 
+```{r}
+ggplot(myfocus, aes(x = (shifts_call_out + shifts_caregiver_cancel), y = shifts_unscheduled, color = nurse_type)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+```
+ There isn't much correlation between penalized cancels and unpenalized cancels
+ 
+```{r}
+ggplot(myfocus, aes(x = total_shifts_claimed, y = shifts_worked, color = nurse_type)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+```
+ less variance between RNs (no crazy outliers)
+ 
+```{r}
+myfocus$install = as.Date(myfocus$install_date, format = "%m/%d/%Y")
+myfocus$firstclaim = as.Date(myfocus$first_shift_claimed_on_platform, format = "%m/%d/%Y") #flipped to available next
+myfocus$firstavail = as.Date(myfocus$flipped_to_available, format = "%m/%d/%Y")
+myfocus$install2claim = as.numeric(myfocus$firstclaim - myfocus$install)
+myfocus$install2avail = as.numeric(myfocus$firstavail - myfocus$install)
+myfocus$avail2claim = as.numeric(myfocus$firstclaim - myfocus$firstavail)
+
+myfocus$workercancelratio = myfocus$shifts_worked / myfocus$totalcancel
+myfocus$workercancelratio[myfocus$totalcancel == 0] = NA
+
+shift$workercancelratio = shift$shifts_worked / shift$totalcancel
+shift$workercancelratio[shift$totalcancel == 0] = NA
+```
+ 
+ 
+```{r}
+ggplot(myfocus, aes(x = install2claim, y = after_stat(density), fill = nurse_type)) + geom_histogram(position = "dodge")
+```
+```{r}
+ggplot(myfocus, aes(x = install2avail, y = after_stat(density), fill = nurse_type)) + geom_histogram(position = "dodge")
+```
+ RNs were quicker to work. more proof they are better workers. LPN and CNA were similar 
+ 
+ 
+```{r}
+ggplot(myfocus, aes(x = avail2claim, y = after_stat(density), fill = nurse_type)) + geom_histogram(position = "dodge")
+```
+ 
+```{r}
+ggplot(myfocus, aes(x = install2avail, y = shifts_worked, color = nurse_type)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+```
+ some nurses who installed and claimed fast ended up not working much shifts
+ 
+```{r}
+summary(myfocus$install2claim)
+summary(myfocus$install2claim[myfocus$nurse_type == "RN"])
+summary(myfocus$install2claim[myfocus$nurse_type == "CNA"])
+summary(myfocus$install2claim[myfocus$nurse_type == "LPN"])
+```
+ RNs were the speediest... but not by much
+ 
+```{r}
+summary(myfocus$avg_distance_between_hcp_and_facility_worked_shifts)
+summary(shift$avg_distance_between_hcp_and_facility_worked_shifts[shift$nurse_type == "RN"])
+summary(shift$avg_distance_between_hcp_and_facility_worked_shifts[shift$nurse_type == "CNA"])
+summary(shift$avg_distance_between_hcp_and_facility_worked_shifts[shift$nurse_type == "LPN"])
+```
+ though it isnt by much, CNAs are often the closest to their jobs...
+```{r}
+mean(coolshift$avg_distance_between_hcp_and_facility_worked_shifts[coolshift$nurse_type == "RN"], na.rm = TRUE)
+mean(coolshift$avg_distance_between_hcp_and_facility_worked_shifts[coolshift$nurse_type == "CNA"], na.rm = TRUE)
+mean(coolshift$avg_distance_between_hcp_and_facility_worked_shifts[coolshift$nurse_type == "LPN"], na.rm = TRUE)
+mean(coolshift$avg_distance_between_hcp_and_facility_worked_shifts[coolshift$nurse_type == "GNA"], na.rm = TRUE)
+median(coolshift$avg_distance_between_hcp_and_facility_worked_shifts[coolshift$nurse_type == "RN"], na.rm = TRUE)
+median(coolshift$avg_distance_between_hcp_and_facility_worked_shifts[coolshift$nurse_type == "CNA"], na.rm = TRUE)
+median(coolshift$avg_distance_between_hcp_and_facility_worked_shifts[coolshift$nurse_type == "LPN"], na.rm = TRUE)
+median(coolshift$avg_distance_between_hcp_and_facility_worked_shifts[coolshift$nurse_type == "GNA"], na.rm = TRUE)
+```
+```{r}
+ggplot(coolshift, aes(x = nurse_type, y = avg_distance_between_hcp_and_facility_worked_shifts, fill = nurse_type)) + geom_boxplot(outlier.shape = NA) + coord_cartesian(ylim = c(quantile(coolshift$avg_distance_between_hcp_and_facility_worked_shifts, 0.01, na.rm = TRUE),                        quantile(coolshift$avg_distance_between_hcp_and_facility_worked_shifts, 0.95, na.rm = TRUE))) + scale_fill_brewer(palette = "Set2") + theme_light() + labs(x = "Nurse Type", y = "Average Distance Between Nurse\n and Facility for Worked Shifts") + ggtitle("Average Distance for Worked Shifts Look\n to be Similar for Popular Nurse Types") + guides(fill = "none") + theme(text = element_text(size = 15))
+```
+ 
+```{r}
+summary(myfocus$totalcancel)
+summary(myfocus$totalcancel[myfocus$nurse_type == "RN"])
+summary(myfocus$totalcancel[myfocus$nurse_type == "CNA"])
+summary(myfocus$totalcancel[myfocus$nurse_type == "LPN"])
+summary(myfocus$newshowrate)
+summary(myfocus$newshowrate[myfocus$nurse_type == "RN"])
+summary(myfocus$newshowrate[myfocus$nurse_type == "CNA"])
+summary(myfocus$newshowrate[myfocus$nurse_type == "LPN"])
+```
+ yet CNAs have a lower show rate on average compared to LPNs and RNs. Why would this be???
+ 
+```{r}
+summary(myfocus$workercancelratio)
+summary(shift$workercancelratio)
+sum(myfocus$workercancelratio <= 1, na.rm = TRUE) / sum(!is.na(myfocus$workercancelratio))
+sum(shift$workercancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift$workercancelratio))
+sum(shift$workercancelratio[shift$shifts_worked > 0] <= 1, na.rm = TRUE) / sum(!is.na(shift$workercancelratio[shift$shifts_worked > 0]))
+```
+interesting observation: almost 3000 people in myfocus have never cancelled a shift
+interpretation: lower number = bad, higher number = good
+about 60% of nurses that have cancelled at least 1 shift have cancelled their shifts just as much or more than worked their shifts (more cancels than works)
+
+```{r}
+summary(myfocus$workercancelratio[myfocus$nurse_type == "RN"])
+summary(myfocus$workercancelratio[myfocus$nurse_type == "CNA"])
+summary(myfocus$workercancelratio[myfocus$nurse_type == "LPN"])
+sum(myfocus$workercancelratio[myfocus$nurse_type == "RN"] <= 1, na.rm = TRUE) / sum(!is.na(myfocus$workercancelratio[myfocus$nurse_type == "RN"]))
+sum(myfocus$workercancelratio[myfocus$nurse_type == "CNA"] <= 1, na.rm = TRUE) / sum(!is.na(myfocus$workercancelratio[myfocus$nurse_type == "CNA"]))
+sum(myfocus$workercancelratio[myfocus$nurse_type == "LPN"] <= 1, na.rm = TRUE) / sum(!is.na(myfocus$workercancelratio[myfocus$nurse_type == "LPN"]))
+```
+MUCH less RNAs have more cancels than works compared to LPNs and CNAs
+
+```{r}
+ggplot(myfocus, aes(y = workercancelratio, x = total_shifts_claimed, color = nurse_type)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+```
+ 
+```{r}
+myfocus %>%
+  select(where(is.numeric)) %>%          # keeps every numeric variable
+  cor(use = "complete.obs") %>%          # correlation matrix
+  as.data.frame() %>%
+  rownames_to_column("Var1") %>%
+  pivot_longer(-Var1,
+               names_to = "Var2",
+               values_to = "correlation") %>%
+  ggplot(aes(Var1, Var2, fill = correlation)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  coord_equal() +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+ 
+```{r}
+count(myfocus, myfocus$quantile_worked_shifts)
+```
+```{r}
+ggplot(myfocus, aes(x = quantile_worked_shifts, fill = nurse_type)) + geom_bar(position = "dodge")
+```
+```{r}
+count(myfocus[myfocus$quantile_worked_shifts == "90-100", ], myfocus$nurse_type[myfocus$quantile_worked_shifts == "90-100"])
+count(myfocus, myfocus$nurse_type)
+```
+```{r}
+842/5850 #CNA
+392/3266 #LPN
+641/3530 #RN
+```
+ More RN power users, but not by much
+ 
+```{r}
+count(shift[shift$quantile_worked_shifts == "90-100", ], shift$nurse_type[shift$quantile_worked_shifts == "90-100"])
+count(shift, shift$nurse_type)
+```
+```{r}
+934 / 10304 #CNA
+422 / 5406 #LPN
+660 / 4821 #RN
+```
+ same story; while RN nurses are more likely to be powerusers, it is not by much
+ 
+```{r}
+count(shift[shift$quantile_worked_shifts == "0-30", ], shift$nurse_type[shift$quantile_worked_shifts == "0-30"])
+count(shift, shift$nurse_type)
+```
+```{r}
+3475/10304 #CNA
+1806/5406 #LPN
+1121/4821 #RN
+```
+ By a larger margin, RN nurses are less likely to be in the bottom 30% of workers (basically those that never worked a shift)
+ 
+ 
+```{r}
+ggplot(shift, aes(x = newshowrate, y = after_stat(density), fill = quantile_worked_shifts)) + geom_histogram(position = "dodge", bins = 10)
+```
+ interesting: nurses in 30 - 40 quantile are just below the nurses in the 90 - 100 quantile in show rate. why could this be?
+ 
+```{r}
+ggplot(shift, aes(x = cancelratio, y = after_stat(density), fill = quantile_worked_shifts)) + geom_histogram(position = "dodge", bins = 25)
+```
+```{r}
+sum(shift[shift$quantile_worked_shifts == "0-30", ]$cancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift[shift$quantile_worked_shifts == "0-30", ]$cancelratio))
+sum(shift[shift$quantile_worked_shifts == "30-40", ]$cancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift[shift$quantile_worked_shifts == "30-40", ]$cancelratio))
+sum(shift[shift$quantile_worked_shifts == "40-50", ]$cancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift[shift$quantile_worked_shifts == "40-50", ]$cancelratio))
+sum(shift[shift$quantile_worked_shifts == "80-90", ]$cancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift[shift$quantile_worked_shifts == "80-90", ]$cancelratio))
+sum(shift[shift$quantile_worked_shifts == "90-100", ]$cancelratio <= 1, na.rm = TRUE) / sum(!is.na(shift[shift$quantile_worked_shifts == "90-100", ]$cancelratio))
+```
+ higher percentile > less proportion of workers had more facility cancels than their own cancels. I believe this is simply due to the nature of the percentiles: the higher ones simply work more themselves, hence this value will be lower
+ 
+```{r}
+$$\frac{\text{shifts worked}}{\text{shifts worked + shifts called out}}$$
+```
+ $$\frac{\text{total shifts cancelled by the user}}{\text{total shifts cancelled by the facility}}$$
+ 

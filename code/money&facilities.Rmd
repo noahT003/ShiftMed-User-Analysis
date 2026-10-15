@@ -1,0 +1,689 @@
+---
+title: "facilityeval&money"
+author: "Noah Thomas"
+date: "2026-03-20"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+shift2nurses = read.csv("newshiftmedNurses.csv", header = TRUE) #read in files
+shift2facilities = read.csv("newshiftmedFacilities.csv", header = TRUE)
+shift2nursesfacilities = read.csv("newshiftmedNurses&Facilities.csv", header = TRUE)
+shift2nursesmonthly = read.csv("newshiftmedNursesMonthly.csv", header = TRUE)
+
+shift2nurses$avg_wage_shifts_worked_2023 = as.numeric(gsub("\\$", "", shift2nurses$avg_wage_shifts_worked_2023))
+shift2nurses$avg_wage_shifts_worked_2024 = as.numeric(gsub("\\$", "", shift2nurses$avg_wage_shifts_worked_2024))
+shift2nurses$avg_wage_shifts_worked_2025 = as.numeric(gsub("\\$", "", shift2nurses$avg_wage_shifts_worked_2025))
+
+shift2facilities$avg_wage_shifts_posted_2023 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_posted_2023))
+shift2facilities$avg_wage_shifts_posted_2024 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_posted_2024))
+shift2facilities$avg_wage_shifts_posted_2025 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_posted_2025))
+shift2facilities$avg_wage_shifts_worked_2023 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_worked_2023))
+shift2facilities$avg_wage_shifts_worked_2024 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_worked_2024))
+shift2facilities$avg_wage_shifts_worked_2025 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_worked_2025))
+
+shift2nursesfacilities$avg_wage_shifts_worked_2023 = as.numeric(gsub("\\$", "", shift2nursesfacilities$avg_wage_shifts_worked_2023))
+shift2nursesfacilities$avg_wage_shifts_worked_2024 = as.numeric(gsub("\\$", "", shift2nursesfacilities$avg_wage_shifts_worked_2024))
+shift2nursesfacilities$avg_wage_shifts_worked_2025 = as.numeric(gsub("\\$", "", shift2nursesfacilities$avg_wage_shifts_worked_2025))
+
+shift2nurses$worked = ifelse(shift2nurses$total_shifts_worked_2023 + shift2nurses$total_shifts_worked_2024 + shift2nurses$total_shifts_worked_2025 > 0, TRUE, FALSE)
+
+shift2nurses$claimed = ifelse(shift2nurses$total_shifts_claimed_2023 + shift2nurses$total_shifts_claimed_2024 + shift2nurses$total_shifts_claimed_2025 > 0, TRUE, FALSE)
+
+shift2nurses$cancelratio = (shift2nurses$total_hcp_cancelled_shifts_2023 + shift2nurses$total_hcp_cancelled_shifts_2024 + shift2nurses$total_hcp_cancelled_shifts_2025) / (shift2nurses$total_shifts_fac_cancel_2023 + shift2nurses$total_shifts_fac_cancel_2024 + shift2nurses$total_shifts_fac_cancel_2025)
+shift2nurses$cancelratio[is.infinite(shift2nurses$cancelratio)] = shift2nurses$total_hcp_cancelled_shifts_2023 + shift2nurses$total_hcp_cancelled_shifts_2024 + shift2nurses$total_hcp_cancelled_shifts_2025
+shift2nurses$cancelratio[shift2nurses$cancelratio == 0 & (shift2nurses$total_shifts_fac_cancel_2023 + shift2nurses$total_shifts_fac_cancel_2024 + shift2nurses$total_shifts_fac_cancel_2025 == 0)] = NA
+
+shift2nurses$newshowrate2023 = shift2nurses$total_shifts_worked_2023 / (shift2nurses$total_shifts_worked_2023 + shift2nurses$total_hcp_cancelled_shifts_2023)
+
+shift2nurses$newshowrate2024 = shift2nurses$total_shifts_worked_2024 / (shift2nurses$total_shifts_worked_2024 + shift2nurses$total_hcp_cancelled_shifts_2024)
+
+shift2nurses$newshowrate2025 = shift2nurses$total_shifts_worked_2025 / (shift2nurses$total_shifts_worked_2025 + shift2nurses$total_hcp_cancelled_shifts_2025)
+
+shift2nurses_workers = shift2nurses[shift2nurses$total_shifts_worked_2023 + shift2nurses$total_shifts_worked_2024 + shift2nurses$total_shifts_worked_2025 > 0, ]
+
+
+```
+```{r}
+library(patchwork)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(ggtext) 
+```
+
+Objective: analyze money and make a facility model (?)
+```{r}
+summary(shift2nurses$avg_wage_shifts_worked_2023)
+summary(shift2nurses$avg_wage_shifts_worked_2024)
+summary(shift2nurses$avg_wage_shifts_worked_2025)
+summary(shift2facilities$avg_wage_shifts_posted_2023)
+summary(shift2facilities$avg_wage_shifts_worked_2025)
+#summary(shift2facilities$avg_wage_shifts_posted_2024)
+#summary(shift2facilities$avg_wage_shifts_posted_2025)
+```
+Question for facility data: what is the difference between posted wage and worked wage?
+
+```{r}
+ggplot(shift2nurses, aes(x = avg_wage_shifts_worked_2023)) + geom_boxplot() + ggplot(shift2facilities, aes(x = avg_wage_shifts_posted_2023)) + geom_boxplot()
+```
+nurses stats are way higher than the wages the facilities are posting, but there are many high outliers for the facility wage. are nurses simply going to these outliers?
+
+```{r}
+moneyfacilities = shift2facilities[shift2facilities$avg_wage_shifts_posted_2023 > 37.45, ]
+nomoneyfacilities = shift2facilities[shift2facilities$avg_wage_shifts_posted_2023 <= 37.45, ]
+
+shift2facilities$wowmoney = shift2facilities$avg_wage_shifts_posted_2025 > 56.59
+```
+
+```{r}
+summary(moneyfacilities$total_shifts_worked_2025)
+summary(nomoneyfacilities$total_shifts_worked_2025)
+summary(moneyfacilities$total_shifts_worked_2025 / moneyfacilities$total_shifts_posted_2025)
+summary(nomoneyfacilities$total_shifts_worked_2025/ nomoneyfacilities$total_shifts_posted_2025)
+```
+on average, facilities giving a high wage did get more shifts. they also had a higher proportion of workers given how much shifts they posted (on average, facilities offering a higher wage get almost 4 times the amount of the shifts)
+
+additional research: the average hourly wage for an RN nurse is \$38 to \$45. So most facilities hire shiftmed nurses BELOW the wage they should be getting
+
+```{r}
+ggplot(shift2facilities[!is.na(shift2facilities$wowmoney), ], aes(x = total_shifts_worked_2025, fill = wowmoney)) + geom_histogram(aes(y = after_stat(density)), position = "dodge", bins = 25) 
+```
+
+```{r}
+sum(moneyfacilities$total_shifts_worked_2025, na.rm = TRUE)
+sum(nomoneyfacilities$total_shifts_worked_2025, na.rm = TRUE) / 3 
+```
+
+
+```{r}
+summary(moneyfacilities$total_shifts_claimed_2025)
+summary(nomoneyfacilities$total_shifts_claimed_2025)
+summary(moneyfacilities$total_hcp_cancelled_shifts_2025)
+summary(nomoneyfacilities$total_hcp_cancelled_shifts_2025)
+summary(moneyfacilities$total_shifts_fac_cancel_2025)
+summary(nomoneyfacilities$total_shifts_fac_cancel_2025)
+```
+more people on average claimed shifts for the facilities offering a higher wage (75th percentile is 120.8 vs. 6.75, huge jump). For cancels, facilities offering more money seemed to have less on average, but the IQR seems to be much higher. Is this due to the lack of claimed shifts for nomoneyfacilities? Do nomoneyfacilities just have extreme outliers? A strange interpretation: facilities offering a higher wage have half as many facility cancelled shifts as facilities offering a wage below the marker on average, but the IQR for facilities with a higher wage is a lot higher than the others. 
+
+```{r}
+value1 = mean(moneyfacilities$total_shifts_worked_2025, na.rm = TRUE)
+value2 = mean(nomoneyfacilities$total_shifts_worked_2025, na.rm = TRUE)
+
+temp2 <- data.frame(
+  Category = c("Yes", "No"),  # x-axis labels
+  Value = c(value1, value2)                 # y-axis values
+)
+
+ggplot(temp2, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Is the Facility's Posted Wages Above the 75th Percentile?") + ylab("Mean Total Shifts Worked at Facility in 2025") + ggtitle("Facilities Posting a High Wage Look\n to Get More Worked Shifts on Average") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + geom_text(aes(label = round(Value, 2), color = Category), vjust = -0.5, fontface = "bold", size = 6) + scale_y_continuous(limits = c(0,  150)) + scale_fill_manual(values = c("darkgray", "#68119A")) +  scale_color_manual(values = c("darkgray", "#68119A"))
+```
+```{r}
+value1 = mean(moneyfacilities$total_shifts_fac_cancel_2025, na.rm = TRUE)
+value2 = mean(nomoneyfacilities$total_shifts_fac_cancel_2025, na.rm = TRUE)
+
+temp3 <- data.frame(
+  Category = c("Yes", "No"),  # x-axis labels
+  Value = c(value1, value2)                 # y-axis values
+)
+
+ggplot(temp3, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Is the Facility's Posted Wages Above the 75th Percentile?") + ylab("Mean Total Shifts Facility has Cancelled") + ggtitle("Facilities Posting a High Wage Have Half as Many\n Facility Cancels Compared to Facilities Who Do Not") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + scale_y_continuous(limits = c(0,50)) + geom_text(aes(label = round(Value, 2), color = Category), vjust = -0.5, fontface = "bold", size = 6) + scale_fill_manual(values = c("darkgrey", "#68119A")) +  scale_color_manual(values = c("darkgray", "#68119A"))
+```
+
+
+Question: are nurses fueled by money (does more average money earned = more shifts worked)?
+```{r}
+summary(shift2nurses$avg_wage_shifts_worked_2025)
+
+moneynurses = shift2nurses[shift2nurses$avg_wage_shifts_worked_2025 > 56.59, ]
+
+nomoneynurses = shift2nurses[shift2nurses$avg_wage_shifts_worked_2025 <= 56.59, ]
+
+shift2nurses$wmoney = shift2nurses$avg_wage_shifts_worked_2025 > 56.59
+
+shift2nurses_workers$wmoney = shift2nurses_workers$avg_wage_shifts_worked_2025 > 56.59
+```
+
+```{r}
+summary(moneynurses$total_shifts_worked_2025)
+summary(nomoneynurses$total_shifts_worked_2025)
+summary(moneynurses$total_confirmed_shifts_2025)
+summary(nomoneynurses$total_confirmed_shifts_2025)
+summary(moneynurses$total_guaranteed_shifts_worked_2025)
+summary(nomoneynurses$total_guaranteed_shifts_worked_2025)
+```
+
+```{r}
+ggplot(shift2nurses_workers[!is.na(shift2nurses_workers$wmoney), ], aes(x = total_shifts_worked_2025, fill = wmoney)) + geom_histogram(aes(y = after_stat(density)), position = "dodge", bins = 20) + scale_x_continuous(limits = c(0,50)) + labs(fill = "Does the Nurse Make\n Above the 75th Percentile?")
+```
+
+on average, those who had an average wage above $56.59 (75th percentile) worked more shifts than those who were paid less
+```{r}
+value1 = mean(moneynurses$total_shifts_worked_2025, na.rm = TRUE)
+value2 = mean(nomoneynurses$total_shifts_worked_2025, na.rm = TRUE)
+
+temp <- data.frame(
+  Category = c("Yes", "No"),  # x-axis labels
+  Value = c(value1, value2)                 # y-axis values
+)
+
+ggplot(temp, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Does the Nurse Make Above the 75th Percentile?") + ylab("Mean Total Shifts Worked in 2025") + ggtitle("Nurses Who Make More Money\n Seem to Work More on Average") + theme_light() + theme(text = element_text(size = 15), legend.position = "none") + scale_y_continuous(limits = c(0, 30)) + geom_text(aes(label = round(Value, 2), color = Category),  vjust = -0.5, fontface = "bold", size = 6) +  scale_fill_manual(values = c("darkgray", "#68119A")) +  scale_color_manual(values = c("darkgray", "#68119A"))
+```
+
+
+```{r}
+ggplot(shift2nurses[!is.na(shift2nurses$wmoney), ], aes(x = total_shifts_claimed_2025, fill = wmoney)) + geom_histogram(aes(y = after_stat(density)), position = "dodge", bins = 25) + scale_x_continuous(limits = c(0,50)) 
+```
+similar story for claimed shifts
+
+question: is money obtained related to uber rides?
+
+```{r}
+summary(shift2nurses$uber_rides_completed_2025)
+table(shift2nurses$uber_rides_completed_2025)
+
+uberusers = shift2nurses[shift2nurses$uber_rides_completed_2025 > 0,]
+```
+```{r}
+ggplot(uberusers, aes(x = uber_rides_completed_2025, y = avg_wage_shifts_worked_2025)) + geom_point()
+```
+
+```{r}
+summary(shift2nurses$avg_wage_shifts_worked_2025)
+summary(uberusers$avg_wage_shifts_worked_2025)
+```
+No, there is not significant evidence that money is correlated with uber rides
+
+```{r}
+nrow(uberusers) / nrow(shift2nurses)
+```
+0.8% of nurses have used the uber feature... yeesh
+
+observation above: guaranteed shifts look to be about the same for moneynurses and nomoneynurses. will explore below
+
+```{r}
+ggplot(shift2nurses, aes(x = avg_wage_shifts_worked_2025, y = total_guaranteed_shifts_worked_2025, color = wmoney)) + geom_point()
+```
+
+Those who have worked guaranteed shifts mostly center around those who have an average wage of 50 - 60... weird
+
+Facilities and a facility ranking system
+
+```{r}
+head(sort(table(shift2facilities$facility_msa), decreasing = TRUE))
+tail(sort(table(shift2facilities$facility_msa), decreasing = TRUE))
+```
+currently most popular and least popular msas... will this go into affect their score on my model?
+
+```{r}
+length(unique(shift2facilities$facility_msa))
+mycounts = table(shift2facilities$facility_msa)
+sum(mycounts <= 2)
+sum(mycounts <= 2) / length(unique(shift2facilities$facility_msa))
+```
+
+more than 1/3 of facility msas have less than or equal to 2 facilties in the area
+
+the model:
+```{r}
+shift2facilities$facpoints2025 = 0.5 * shift2facilities$total_shifts_claimed_2025 + shift2facilities$total_confirmed_shifts_2025 + 0.75 * shift2facilities$total_shifts_worked_2025 + 2 * shift2facilities$avg_wage_shifts_posted_2025 + 2.5 * shift2facilities$total_guaranteed_shifts_worked_2025 + 2 * shift2facilities$total_bundle_shifts_worked_2025 - shift2facilities$total_shifts_fac_cancel_2025
+
+shift2facilities$facpoints2025 = ifelse(shift2facilities$total_shifts_worked_2025 == 0, 0, shift2facilities$facpoints2025)
+
+shift2facilities$facpoints2024 = 0.5 * shift2facilities$total_shifts_claimed_2024 + shift2facilities$total_confirmed_shifts_2024 + 0.75 * shift2facilities$total_shifts_worked_2024 + 2 * shift2facilities$avg_wage_shifts_posted_2024 + 2.5 * shift2facilities$total_guaranteed_shifts_worked_2024 + 2 * shift2facilities$total_bundle_shifts_worked_2024 - shift2facilities$total_shifts_fac_cancel_2024
+
+shift2facilities$facpoints2024 = ifelse(shift2facilities$total_shifts_worked_2024 == 0, 0, shift2facilities$facpoints2024)
+```
+
+```{r}
+head(sort(shift2facilities$facpoints2025, decreasing = TRUE))
+```
+
+```{r}
+points2025 = shift2facilities %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  summarize(total_value = sum(facpoints2025, na.rm = TRUE)) %>%
+  arrange(desc(total_value)) 
+
+meanpoints2025 = shift2facilities %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  summarize(total_value = mean(facpoints2025, na.rm = TRUE)) %>%
+  arrange(desc(total_value)) 
+
+meanpointsovertwo2025 = shift2facilities %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  filter(n() > 2) %>%
+  summarize(total_value = mean(facpoints2025, na.rm = TRUE)) %>%
+  arrange(desc(total_value))
+
+
+works2025 = shift2facilities %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  summarize(total_value = sum(total_shifts_worked_2025, na.rm = TRUE)) %>%
+  arrange(desc(total_value)) 
+
+meanworks2025 = shift2facilities %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  filter(n() > 2) %>%
+  summarize(total_value = mean(total_shifts_worked_2025, na.rm = TRUE)) %>%
+  arrange(desc(total_value)) 
+
+bestfacs2025 = shift2facilities[, c("facility_id","facility_msa","facpoints2025")] %>%  
+  arrange(desc(facpoints2025)) 
+
+meanpointsovertwo2024 = shift2facilities %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  filter(n() > 2) %>%
+  summarize(total_value = mean(facpoints2024, na.rm = TRUE)) %>%
+  arrange(desc(total_value))
+
+top8facs <- bestfacs2025 %>%
+  arrange(desc(facpoints2025)) %>% 
+  slice_head(n = 8)
+
+top8msas <- meanpointsovertwo2025 %>%
+  arrange(desc(total_value)) %>% 
+  slice_head(n = 8)
+
+meanpointsovertwo2025
+meanpointsovertwo2024
+bestfacs2025
+top8facs
+top8msas
+```
+For sum: Best fac msas according to my model mostly follows just how much shifts were worked there... I believe this model is pretty accurate, but would another model be more accurate?
+
+Average is a whole different story...
+
+Different interpretations:
+points2025: St. Louis is the MSA with the most total points
+meanpoints2025: Goldsboro is the MSA with the highest average points per facility
+meanpointsovertwo2025: Johnstown is the MSA with the highest average points per facility and has > 2 facilities in the MSA
+
+I believe meanpointsovertwo is the best measure of quality of msa
+
+Observation: individual facilities in bustling cities / metropolitan msas (st louis, philly, detroit, harrisburg, etc.) have the highest points, but the msas with the highest total average are less popular areas (johnstown, lancaster, rochester, etc.). they are cities, but just not as big as ones like new york and philly
+
+```{r}
+shift2facilities[shift2facilities$facility_id == 20343, ]
+```
+
+the numbers for this facility is ridiculously high... is this accurate, or is this data point a mistake?
+
+```{r}
+shift2facilities$facpoints2025[shift2facilities$facility_msa == "Philadelphia-Wilmington-Atlantic City PA-NJ-DE-MD CMSA"]
+```
+```{r}
+shift2facilities$facpoints2025[shift2facilities$facility_msa == "Johnstown PA MSA"]
+```
+Philly has a lot of facilities, but most of them had 0 nurses work a shift. Johnstown was more consistent. 
+
+```{r}
+shift2facilities$facpoints2025[shift2facilities$facility_msa == "Chicago-Gary-Kenosha IL-IN-WI CMSA"]
+```
+chicago has some of the most facilities, but most of them didn't have a single person work there
+```{r}
+shift2facilities$facpoints2024[shift2facilities$facility_msa == "Chicago-Gary-Kenosha IL-IN-WI CMSA"]
+```
+
+
+```{r}
+shift2facilities[shift2facilities$total_shifts_worked_2025 > 0, ]
+shift2facilities[shift2facilities$total_shifts_worked_2024 > 0, ]
+shift2facilities[shift2facilities$total_shifts_worked_2023 > 0, ]
+shift2facilities
+```
+
+```{r}
+793/2419
+1110/2419
+1367/2419
+```
+
+less than a third of facilities had a shiftmed nurse work a single shift in 2025... this proportion has been decreasing through the years. Why are nurses going to less facilities? are they simply just concentrated in the big facilities?
+
+```{r}
+shift2nurses[shift2nurses$total_shifts_worked_2025 > 0, ]
+shift2nurses[shift2nurses$total_shifts_worked_2024 > 0, ]
+shift2nurses[shift2nurses$total_shifts_worked_2023 > 0, ]
+shift2nurses
+```
+```{r}
+3728/14226
+4125/14226
+3980/14226
+```
+theme is not really present in nurses. 
+interpretation: of all the nurses in the dataset, only 26.2% of them worked a shift in 2025
+
+
+extra analysis
+
+wage by msa
+```{r}
+meanwage2025 = shift2facilities %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  filter(n() > 2) %>%
+  summarize(total_value = mean(avg_wage_shifts_worked_2025, na.rm = TRUE)) %>%
+  arrange(desc(total_value))
+
+
+meanwagenurses2025 = shift2nurses %>%
+  group_by(nurse_msa) %>%    # Group by the categorical variable
+  filter(n() > 2) %>%
+  summarize(total_value = mean(avg_wage_shifts_worked_2025, na.rm = TRUE)) %>%
+  arrange(desc(total_value))
+
+meanwagepost2025 = shift2facilities %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  filter(n() > 2) %>%
+  summarize(total_value = mean(avg_wage_shifts_posted_2025, na.rm = TRUE)) %>%
+  arrange(desc(total_value))
+
+
+meanwage2025
+meanwagenurses2025
+meanwagepost2025
+```
+
+graphing
+
+
+```{r}
+popfocus = c("St. Louis MO-IL MSA","Chicago-Gary-Kenosha IL-IN-WI CMSA","Washington-Baltimore DC-MD-VA-WV CMSA","Philadelphia-Wilmington-Atlantic City PA-NJ-DE-MD CMSA","Pittsburgh PA MSA","New York-Northern New Jersey-Long Island NY-NJ-CT-PA")
+popmsas = shift2facilities[shift2facilities$facility_msa %in% popfocus, ]
+
+popmsas <- popmsas %>%
+  mutate(facility_msa = recode(facility_msa,
+    "St. Louis MO-IL MSA" = "St. Louis",
+    "Chicago-Gary-Kenosha IL-IN-WI CMSA" = "Chicago",
+    "Washington-Baltimore DC-MD-VA-WV CMSA" = "Washington D.C.", "Philadelphia-Wilmington-Atlantic City PA-NJ-DE-MD CMSA" = "Philadelphia PA / NJ", "Pittsburgh PA MSA" = "Pittsburgh", "New York-Northern New Jersey-Long Island NY-NJ-CT-PA" = "New York"
+  ))
+popfocus2 = c("Johnstown PA MSA", "Rochester NY MSA", "St. Louis MO-IL MSA", "Lancaster PA MSA", "Columbus GA-AL MSA", "Asheville NC MSA", "Oklahoma City OK MSA","York PA MSA")
+popmsas2 = shift2facilities[shift2facilities$facility_msa %in% popfocus2, ]
+```
+
+
+
+wage differences in popular msas
+
+```{r}
+ggplot(popmsas, aes(y = fct_reorder(facility_msa, avg_wage_shifts_posted_2025), x = avg_wage_shifts_posted_2025, fill = facility_msa)) + geom_boxplot(alpha = 0.85, outlier.shape = NA) + theme_light() + theme(text = element_text(size = 10), legend.position = "none") + scale_fill_brewer(palette = "Purples", direction = 3) + xlab("Average Wage of Shifts Posted (Per Hour)") + ylab("Facility MSA") + ggtitle("St Louis' Better Pay May Be a Reason Why\n it is One of the Highest Ranked MSAs") + scale_x_continuous(labels = c("$20","$30","$40","$50", "$60", "$70"))
+```
+avg wages fall way behind st louis... may be a reason so many nurses work there
+```{r}
+ggplot(popmsas2, aes(y = facility_msa, x = avg_wage_shifts_worked_2025, fill = facility_msa)) + geom_boxplot()
+```
+
+
+```{r}
+popmsas <- popmsas %>%
+  mutate(facility_msa = reorder(facility_msa, facpoints2025))
+
+ggplot(popmsas, aes(x = facility_msa, y = facpoints2025, fill = facility_msa)) +
+  stat_summary(fun = mean, geom = "bar", color = "black") +
+  labs(
+    x = "Facility MSA",
+    y = "Mean of Facility Points",
+    title = "St. Louis Dominates and Chicago Disappoints in Mean Facility Points") + theme_light() + theme(text = element_text(size = 10), legend.position = "none") + scale_fill_brewer(palette = "Purples") + coord_cartesian(ylim = c(0, 1600)) + stat_summary(
+  fun = mean,
+  geom = "text",
+  aes(label = round(after_stat(y))),
+  vjust = -0.5,
+  fontface = "bold", color = "#68119A"
+) 
+```
+visualization of fac points for popular msas. chicago is one of the worst and st louis is one of the best
+
+```{r}
+ggplot(popmsas, aes(x = facpoints2025, y = avg_wage_shifts_worked_2025)) + geom_point()
+```
+```{r}
+popmsas_zero <- popmsas %>%
+  group_by(facility_msa) %>%
+  summarise(zero_count = sum(facpoints2025 == 0, na.rm = TRUE))
+
+ggplot(popmsas_zero, aes(y = zero_count, x = facility_msa)) + geom_col()
+```
+```{r}
+popmsas_zeroprop <- popmsas %>%
+  group_by(facility_msa) %>%
+  summarise(zero_count = sum(facpoints2025 == 0, na.rm = TRUE), 
+            total_count = n(),
+    prop_zero = zero_count / total_count) 
+
+ggplot(popmsas_zeroprop, aes(y = prop_zero, x = facility_msa, fill = facility_msa)) + geom_col(color = "black") + theme_light() + theme(text = element_text(size = 11), legend.position = "none") + scale_fill_brewer(palette = "Pastel1") + xlab("Facility MSA") + ylab("Proportion of Facilities that had 0 Worked Shifts") + ggtitle("Almost all of Chicago's Facilities Didn't\n Have a Single Nurse Work There") + scale_y_continuous(labels = c("0%","25%","50%","75%","100%"))
+```
+almost all of chicagos facilities have had 0 nurses work there... even for st. louis, a successful msa, over 50% of its facilities have had 0 nurses
+
+$$0.5\text{ (Shifts Claimed) + Confirmed Shifts + } 0.75\text{ (Shifts Worked) + } \\
+2\text{ (Average Wage Posted) + } 2.5\text{ (Guaranteed Shifts Worked) + }\\ 2\text{ (Bundle Shifts Worked) - Facility Cancels}$$
+
+```{r}
+popmsas2_zeroprop <- popmsas2 %>%
+  group_by(facility_msa) %>%
+  summarise(zero_count = sum(facpoints2025 == 0, na.rm = TRUE), 
+            total_count = n(),
+    prop_zero = zero_count / total_count) 
+
+ggplot(popmsas2_zeroprop, aes(y = prop_zero, x = facility_msa, fill = facility_msa)) + geom_col(color = "black") + theme_light()
+```
+
+```{r}
+sum(shift2nurses$total_shifts_worked_2025 > 2)
+sum(shift2nurses$total_shifts_worked_2024 > 2)
+sum(shift2nurses$total_shifts_worked_2023 > 2)
+
+sum(shift2nurses$total_shifts_claimed_2025 > 0)
+sum(shift2nurses$total_shifts_claimed_2024 > 0)
+sum(shift2nurses$total_shifts_claimed_2023 > 0)
+```
+
+```{r}
+sum(shift2nurses$total_shifts_worked_2025)
+sum(shift2nurses$total_shifts_worked_2024)
+sum(shift2nurses$total_shifts_worked_2023)
+
+```
+
+2025 - less nurses working, but they work more shifts
+2024 - more nurses working, but they work less shifts
+want to graph the above in the best way
+
+```{r}
+value1 = sum(shift2nurses$total_shifts_worked_2023 > 0)
+value2 = sum(shift2nurses$total_shifts_worked_2024 > 0)
+value3 = sum(shift2nurses$total_shifts_worked_2025 > 0)
+
+temp <- data.frame(
+  Category = c("2023", "2024", "2025"),  # x-axis labels
+  Value = c(value1, value2, value3)                 # y-axis values
+)
+
+ggplot(temp, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Year") + ylab("Amount of Nurses Who Worked at Least 1 Shift") + ggtitle("2025 Saw the Least Amount of Nurses\n Work in the Last 3 Years") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + scale_y_continuous(limits = c(0, 4500)) + geom_text(aes(label = round(Value, 2), color = Category), vjust = -0.5, fontface = "bold") + scale_fill_brewer(palette = "Dark2") + scale_color_brewer(palette = "Dark2")
+```
+
+```{r}
+value1 = sum(shift2nurses$total_shifts_worked_2023)
+value2 = sum(shift2nurses$total_shifts_worked_2024)
+value3 = sum(shift2nurses$total_shifts_worked_2025)
+
+temp <- data.frame(
+  Category = c("2023", "2024", "2025"),  # x-axis labels
+  Value = c(value1, value2, value3)                 # y-axis values
+)
+
+ggplot(temp, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Year") + ylab("Amount of Worked Shifts Across All Nurses") + ggtitle("2025 Had the Most Shifts Worked in Recent Times") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + scale_y_continuous(limits = c(0, 80000)) + geom_text(aes(label = round(Value, 2), color = Category), vjust = -0.5, fontface = "bold") + scale_fill_manual(values = c("#8DD3D3", "darkgray", "#68119A")) + scale_color_manual(values = c("#8DD3D3", "darkgray", "#68119A"))
+```
+
+```{r}
+value1 = sum(shift2facilities$total_shifts_worked_2023 > 0)
+value2 = sum(shift2facilities$total_shifts_worked_2024 > 0)
+value3 = sum(shift2facilities$total_shifts_worked_2025 > 0)
+
+temp <- data.frame(
+  Category = c("2023", "2024", "2025"),  # x-axis labels
+  Value = c(value1, value2, value3)                 # y-axis values
+)
+
+ggplot(temp, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Year") + ylab("Amount of Facilities That\n Had at Least 1 Shift Worked") + ggtitle("Amount of Facilities Worked at Have\n Steadily Decreased Over Time") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + scale_y_continuous(limits = c(0, 1500)) + geom_text(aes(label = round(Value, 2), color = Category), vjust = -0.5, fontface = "bold") + scale_fill_brewer(palette = "Dark2") + scale_color_brewer(palette = "Dark2")
+```
+
+
+
+future plans: compare facility models throughout the years?
+
+wage by power user
+
+```{r}
+shift2nurses$power = ifelse(shift2nurses$total_shifts_worked_2025 > 10, "11+", ifelse((shift2nurses$total_shifts_worked_2025 > 5) &  (shift2nurses$total_shifts_worked_2025 <= 10), "6-10", ifelse((shift2nurses$total_shifts_worked_2025 >= 1) &  (shift2nurses$total_shifts_worked_2025 <= 5), "1-5", NA)))
+shift2nurses$power =  factor(
+  shift2nurses$power,
+  levels = c("1-5", "6-10", "11+"),
+  ordered = TRUE
+)
+
+table(shift2nurses$power)
+
+```
+```{r}
+summary(shift2nurses[shift2nurses$power == "11+", ]$avg_wage_shifts_worked_2025)
+summary(shift2nurses[shift2nurses$power == "6-10", ]$avg_wage_shifts_worked_2025)
+summary(shift2nurses[shift2nurses$power == "1-5", ]$avg_wage_shifts_worked_2025)
+```
+```{r}
+ggplot(shift2nurses[shift2nurses$total_shifts_worked_2025 > 0, ], aes(y = avg_wage_shifts_worked_2025, x = power, fill = power)) + geom_boxplot(outlier.shape = NA, alpha = 0.85) + scale_y_continuous(limits = c(30, 70), labels = c("$30","$40","$50","$60","$70")) + xlab("Type of User") + ylab("Average Wage of Shifts Worked in 2025") + theme_light() + ggtitle("Wages Look to be Similar for Each User Type on Average") + theme(text = element_text(size = 12), legend.position = "none") + scale_fill_manual(values = c("darkgray", "darkgray", "#68119A")) + scale_x_discrete(labels = c("Low Users", "Mid Users", "Power Users"))
+```
+
+```{r}
+top8facs <- top8facs %>%
+  mutate(facility_id = reorder(facility_id, facpoints2025))
+
+top8facs$highlight <- ifelse(top8facs$facility_msa %in% c("St. Louis MO-IL MSA"), 
+                       "highlight", "other")
+
+ggplot(top8facs, aes(x = facility_id, y = facpoints2025, fill = highlight)) +
+  geom_col(color = "black") + scale_x_discrete(labels = c(
+    "1785" = "Washington D.C. / Baltimore",
+    "6622" = "Lancaster",
+    "10414" = "PA Nonmetropolitan Area",
+    "20432" = "St Louis",
+    "20369" = "St Louis",
+    "9435" = "New York / North New Jersey",
+    "10832" = "Pittsburgh",
+    "20343" = "St. Louis"
+  )) + theme_light() + theme(text = element_text(size = 11), axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none") + geom_text(aes(label = round(facpoints2025), color = highlight), vjust = -0.5, fontface = "bold")  + scale_y_continuous(limits = c(0, 90000)) + xlab("Different Facilities Labelled by MSA") + ylab("Facility Points") + ggtitle("Top 8 Facilities Based on the Facility Ranking System") +   scale_fill_manual(values = c("highlight" = "#68119A", "other" = "darkgray")) + scale_color_manual(values = c("highlight" = "#68119A", "other" = "darkgray"))
+```
+
+```{r}
+top8msas <- top8msas %>%
+  mutate(facility_msa = reorder(facility_msa, total_value))
+#factor(facility_msa))
+ggplot(top8msas, aes(y = total_value, x = facility_msa, fill = factor(facility_msa))) +
+  geom_col(color = "black") + theme_light() + theme(text = element_text(size = 11), axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none") + geom_text(aes(label = round(total_value)), color = "#68119A", vjust = -0.5, fontface = "bold") + scale_y_continuous(limits = c(0, 1800)) + scale_fill_brewer(palette = "Purples", direction = 1) + xlab("Facility MSA") + ylab("Mean Facility Points of Each\n Facility in the MSA") + ggtitle("Top 8 Facility MSAs Based on Average Facility Points") 
+```
+
+some extra stuff
+
+investigating the st louis facility 
+```{r}
+bestfac = shift2nursesfacilities[(shift2nursesfacilities$facility_id == "20343") | (shift2nursesfacilities$facility_id == "10832") | (shift2nursesfacilities$facility_id == "9435"), ]
+notbestfac = shift2nursesfacilities[shift2nursesfacilities$facility_id != "20343", ]
+
+summary(bestfac$total_shifts_worked_2025)
+summary(bestfac$total_shifts_worked_2025[bestfac$total_shifts_worked_2025 > 0])
+summary(notbestfac$total_shifts_worked_2025[notbestfac$total_shifts_worked_2025 > 0])
+```
+of the nurses who have worked at least one shift at the goated facilities, they averaged around 8 shifts worked in 2025. across all facilities, of the nurses who have worked at least one shift there, they averaged around 2 shifts worked at that facility in 2025
+
+```{r}
+summary(bestfac$total_confirmed_shifts_2025[bestfac$total_shifts_worked_2025 > 0])
+summary(notbestfac$total_confirmed_shifts_2025[notbestfac$total_shifts_worked_2025 > 0])
+```
+of the nurses who are working, it looks as though confirmed shifts are being used a lot. (many nurses have more confirmed shifts than worked shifts)
+
+```{r}
+summary(bestfac$avg_wage_shifts_worked_2025[bestfac$total_shifts_worked_2025 > 0])
+summary(notbestfac$avg_wage_shifts_worked_2025[notbestfac$total_shifts_worked_2025 > 0])
+```
+wage worked is similar... st louis mostly posts a high wage but all facilities have nearly the same worked wage?
+
+```{r}
+summary(bestfac$total_bundle_shifts_worked_2025[bestfac$total_shifts_worked_2025 > 0])
+summary(notbestfac$total_bundle_shifts_worked_2025[notbestfac$total_shifts_worked_2025 > 0])
+```
+some outliers... but on average bundle shifts may not be a super popping feature
+
+```{r}
+summary(bestfac$total_guaranteed_shifts_worked_2025[bestfac$total_shifts_worked_2025 > 0])
+summary(notbestfac$total_guaranteed_shifts_worked_2025[notbestfac$total_shifts_worked_2025 > 0])
+```
+guaranteed shifts have gotten used a little bit at higher level facilities
+
+```{r}
+summary(bestfac$total_shifts_fac_cancel_2025)
+summary(notbestfac$total_shifts_fac_cancel_2025)
+summary(bestfac$total_hcp_cancelled_shifts_2025)
+summary(notbestfac$total_hcp_cancelled_shifts_2025)
+```
+for all nurses, the facility cancel rate is similar between top ranked facs and the other facs.so higher wage facilities cancel less, but the higher ranked facilities dont have significant evidence of cancelling less. sameish story for nurse cancels
+
+```{r}
+summary(bestfac$claimed_shift_ytd[bestfac$total_shifts_worked_2025 > 0])
+summary(notbestfac$claimed_shift_ytd[notbestfac$total_shifts_worked_2025 > 0])
+```
+presense of outliers. but those that worked at top level facilities are showing better retention
+
+```{r}
+(sum((bestfac$total_shifts_worked_2025 > 0) & (bestfac$claimed_shift_ytd > 0))) / sum((bestfac$total_shifts_worked_2025 > 0))
+(sum((notbestfac$total_shifts_worked_2025 > 0) & (notbestfac$claimed_shift_ytd > 0))) / sum((notbestfac$total_shifts_worked_2025 > 0))
+
+(sum((bestfac$total_shifts_worked_2024 > 0) & (bestfac$total_shifts_worked_2025 > 0))) / sum((bestfac$total_shifts_worked_2024 > 0))
+(sum((notbestfac$total_shifts_worked_2024 > 0) & (notbestfac$total_shifts_worked_2025 > 0))) / sum((notbestfac$total_shifts_worked_2024 > 0))
+```
+confirms above. those that work at higher level facilities are more likely to come back for them in the next year.
+
+interpretation: 53% of nurses who worked at high level facilities in 2024 worked at those same facilities in 2025
+
+looking at nursesmonthly
+
+```{r}
+summary(shift2nursesmonthly$total_facilities_worked[shift2nursesmonthly$total_facilities_worked > 0])
+summary(shift2nursesmonthly$total_shifts_worked[shift2nursesmonthly$total_facilities_worked > 0])
+```
+
+within a month span nurses often only worked at one facility
+
+```{r}
+summary(shift2nursesmonthly$total_facilities_worked[shift2nursesmonthly$total_shifts_worked > 1])
+summary(shift2nursesmonthly$total_shifts_worked[shift2nursesmonthly$total_facilities_worked > 1])
+```
+
+more facilities worked at -> more shifts worked?
+given you worked more than 1 shift, nurses on average worked at 2 facilities in a month
+
+```{r}
+facilitiesworked = shift2nursesmonthly[shift2nursesmonthly$total_facilities_worked > 0, ] %>%
+  group_by(caregiver_id) %>%
+  summarise(mean_per_level = mean(total_facilities_worked, na.rm = TRUE)) %>%
+  summarise(mean_of_means = mean(mean_per_level))
+
+facilitiesworked2 = shift2nursesmonthly[shift2nursesmonthly$total_facilities_worked > 0, ] %>%
+  group_by(caregiver_id) %>%
+  summarise(mean_per_level = median(total_facilities_worked, na.rm = TRUE)) %>%
+  summarise(mean_of_means = median(mean_per_level))
+
+facilitiesworked3 = shift2nursesmonthly[shift2nursesmonthly$total_facilities_worked > 0, ] %>%
+  group_by(caregiver_id) %>%
+  summarise(mean_per_level = median(total_facilities_worked, na.rm = TRUE)) %>%
+  summarise(mean_of_means = mean(mean_per_level))
+
+facilitiesworked
+facilitiesworked2
+facilitiesworked3
+```
+on average, users worked at about 1.3 - 1.4 facilities per month. so nurses usually only go to 1 facility
+
