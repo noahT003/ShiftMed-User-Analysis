@@ -17,6 +17,7 @@ R. Utilzed ggplot2 and tidyverse packages.
 - Exploratory analysis
 - Data Visualization
 - Communication and Presentation
+- Team leadership
 
 ## Key Findings
 - Due to NDA restrictions, I refrain from interpreting the data.
