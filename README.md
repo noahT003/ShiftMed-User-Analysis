@@ -10,7 +10,7 @@ Locate meaningful customer groups and identify behaviors of users in them. Class
 ShiftMed supplied us with data of their users, facilities the utilized, frequency of certain nurses at certain facilities, etc., so we had multiple spreadsheets, some with 50,000+ rows. We utilized a combination of all of our spreadsheets in our analysis.
 
 ## Tools Used
-R. Utilzed ggplot2 and tidyverse packages.
+R. Utilized ggplot2 and tidyverse packages. Used knowledge of Python (seaborn, matplotlib, pandas) to give commentary on groupmates' work.
 
 ## Methods
 - Data cleaning
