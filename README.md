@@ -1,10 +1,10 @@
 # ShiftMed User Analysis
 
 ## Overview
-Brief explanation of the project.
+
 
 ## Objective
-What question were you trying to answer?
+Locate meaningful customer groups and identify behaviors of users in them. Classify what behaviors predict long term retention on the ShiftMed app.
 
 ## Data
 What data did you use? Where did it come from?
@@ -15,9 +15,7 @@ R
 ## Methods
 - Data cleaning
 - Exploratory analysis
-- Visualization
-- Modeling
-- Statistical testing
+- Data Visualization
 
 ## Key Findings
 - Finding 1
