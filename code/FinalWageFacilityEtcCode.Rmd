@@ -1,0 +1,557 @@
+---
+title: "FinalWageFacilityEtcCode"
+author: "Noah Thomas"
+date: "2026-04-28"
+output: html_document
+---
+This document outlines the code I used to obtain explore shiftmed's datasets for general info, info on wages, and info on facilities. What is contained in here is all of the code relevant to any visualization I displayed in a graph in a presentation and some extra info. This document is not representative of my complete exploration process.
+
+First, we load in packages we will be using. There are used all throughout this document
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(ggtext) 
+library(lubridate)
+```
+
+
+Now, we load in the data. The CSV files were downloaded from the master excel document and each csv is one sheet. The names are according to the sheet they pertain to
+```{r}
+shift2nurses = read.csv("newshiftmedNurses.csv", header = TRUE) #read in files
+shift2facilities = read.csv("newshiftmedFacilities.csv", header = TRUE)
+shift2nursesfacilities = read.csv("newshiftmedNurses&Facilities.csv", header = TRUE)
+shift2nursesmonthly = read.csv("newshiftmedNursesMonthly.csv", header = TRUE)
+
+#Money data was in the format "$28.75", where the dollar sign symbol was part of
+#the number, making it a string. We remove the dollar sign so we can treat all
+#wage variables as numeric
+shift2nurses$avg_wage_shifts_worked_2023 = as.numeric(gsub("\\$", "", shift2nurses$avg_wage_shifts_worked_2023))
+shift2nurses$avg_wage_shifts_worked_2024 = as.numeric(gsub("\\$", "", shift2nurses$avg_wage_shifts_worked_2024))
+shift2nurses$avg_wage_shifts_worked_2025 = as.numeric(gsub("\\$", "", shift2nurses$avg_wage_shifts_worked_2025))
+
+shift2facilities$avg_wage_shifts_posted_2023 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_posted_2023))
+shift2facilities$avg_wage_shifts_posted_2024 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_posted_2024))
+shift2facilities$avg_wage_shifts_posted_2025 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_posted_2025))
+shift2facilities$avg_wage_shifts_worked_2023 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_worked_2023))
+shift2facilities$avg_wage_shifts_worked_2024 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_worked_2024))
+shift2facilities$avg_wage_shifts_worked_2025 = as.numeric(gsub("\\$", "", shift2facilities$avg_wage_shifts_worked_2025))
+
+shift2nursesfacilities$avg_wage_shifts_worked_2023 = as.numeric(gsub("\\$", "", shift2nursesfacilities$avg_wage_shifts_worked_2023))
+shift2nursesfacilities$avg_wage_shifts_worked_2024 = as.numeric(gsub("\\$", "", shift2nursesfacilities$avg_wage_shifts_worked_2024))
+shift2nursesfacilities$avg_wage_shifts_worked_2025 = as.numeric(gsub("\\$", "", shift2nursesfacilities$avg_wage_shifts_worked_2025))
+
+```
+
+This is code to make another dataframe from the corrected data for total shifts posted and avg wage posted. It merges data from the facility data to make a large dataset. We use this a few times to verify if there were significant differences between the corrected data and the data we were given. However, we did notice that some facilities in the corrected data were not in the initial data and vice versa, so direct comparison was not available for every single facility.
+```{r}
+fixed = read.csv("fixed.csv", header = TRUE)
+
+fixed$avg_wage_shifts_posted_2023 = as.numeric(gsub("\\$", "", fixed$avg_wage_shifts_posted_2023))
+fixed$avg_wage_shifts_posted_2024 = as.numeric(gsub("\\$", "", fixed$avg_wage_shifts_posted_2024))
+fixed$avg_wage_shifts_posted_2025 = as.numeric(gsub("\\$", "", fixed$avg_wage_shifts_posted_2025))
+
+merged <- rows_upsert(
+  shift2facilities,
+  fixed %>% select(any_of(names(shift2facilities))),
+  by = "facility_id"
+)
+```
+
+here we sanity check the data to make sure we uploaded it correctly or if there was a mistake. We did not find any abnormal values so we proceeded.
+```{r}
+length(unique(shift2nurses$caregiver_id))
+length(unique(shift2facilities$facility_id))
+length(unique(shift2nursesfacilities$caregiver_id))
+length(unique(shift2nursesfacilities$facility_id))
+length(unique(shift2nursesmonthly$caregiver_id))
+```
+
+We now compare how many nurses are working and claiming shifts in this dataset. We create new variables worked and claimed to indicate if nurses have worked or claimed at least once in 2023, 2024, or 2025. We find that about 57% of nurses have worked at least one shift, and about 76% of nurses have claimed at least one shift
+```{r}
+shift2nurses$worked = ifelse(shift2nurses$total_shifts_worked_2023 + shift2nurses$total_shifts_worked_2024 + shift2nurses$total_shifts_worked_2025 > 0, TRUE, FALSE)
+
+shift2nurses$claimed = ifelse(shift2nurses$total_shifts_claimed_2023 + shift2nurses$total_shifts_claimed_2024 + shift2nurses$total_shifts_claimed_2025 > 0, TRUE, FALSE)
+
+
+summary(shift2nurses$worked)
+8111/14226
+summary(shift2nurses$claimed)
+10849 / 14226
+```
+We wanted to find when shiftmed was having most of its shifts worked throughout the year. We created this dataframe and found the following information. We do not include info in 2026 since we do not have data on most months in the year yet. We visualize this dataframe below.
+```{r}
+timedf = shift2nursesmonthly %>%
+  group_by(month_date) %>%
+  summarise(shifts_worked = sum(total_shifts_worked, na.rm = TRUE)) %>%
+  arrange(desc(shifts_worked)) %>% 
+  mutate(month_date22 = str_replace(month_date, "25$", "2025")) %>%
+  mutate(month_date22 = str_replace(month_date22, "24$", "2024")) %>%
+  mutate(month_date22 = str_replace(month_date22, "23$", "2023")) %>%
+  mutate(month_date22 = str_replace(month_date22, "26$", "2026")) %>%
+  mutate(month_date2 = as.Date(month_date22, format = "%m/%d/%Y")) %>%
+  filter(month_date2 < as.Date("2026/01/01")) %>%
+  select(-month_date22)
+timedf
+```
+
+This is the visualization of the above table. As we have went into detail about it in presentations, we will refrain from going into too much detail here. We chose to highlight July and December, as they had the most shifts worked of any month
+```{r}
+highlight <- timedf %>%
+  filter(format(month_date2, "%m") %in% c("07", "12"))
+
+
+ggplot(timedf, aes(x = month_date2, y= shifts_worked)) + geom_line() + geom_point(data = highlight, color = "#68119A", size = 3) + geom_text(data = highlight, aes(label = shifts_worked), vjust = -1, color = "#68119A") + scale_x_date(limits = as.Date(c("2023-01-01", "2025-12-31")), date_labels = "%b %Y", date_breaks = "4 month") + scale_y_continuous(limits = c(3000, 7200)) + theme_light() +
+  xlab("Year") + ylab("Total Worked Shifts") + ggtitle("July and December Look to be the\n Busiest Months for ShiftMed") + theme(text = element_text(size = 15), axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Here, we focused more on wages. The first thing we check here is compared the corrected values of wage posted with the initial values we got. We observe a slight difference in the summary for 2025. Wage posted is not a variable I worked with extensively, but with more work I would have explored this relationship more with the corrected values.
+```{r}
+summary(shift2facilities$avg_wage_shifts_posted_2025)
+summary(merged$avg_wage_shifts_posted_2025)
+```
+We can observe in the above code that the median of avg wage shifts posted for 2025 is $34.64. We use this to create the following dataframes:
+moneyfacilities: facilities whose posted wage is above $34.64
+nomoneyfacilities: facilities whose posted wage is or is below $34.64
+We used the corrected data value since we believe it to be most accurate of wages in 2025.
+```{r}
+moneyfacilities = shift2facilities[shift2facilities$avg_wage_shifts_posted_2025 > 34.64, ]
+nomoneyfacilities = shift2facilities[shift2facilities$avg_wage_shifts_posted_2025 <= 34.64, ]
+```
+
+Something interesting we found was the following: moneyfacilities also had a higher proportion of workers given how much shifts they posted (on average, facilities offering a higher wage get about 3 times the amount of the shifts)
+```{r}
+summary(moneyfacilities$total_shifts_worked_2025 / moneyfacilities$total_shifts_posted_2025)
+summary(nomoneyfacilities$total_shifts_worked_2025/ nomoneyfacilities$total_shifts_posted_2025)
+```
+We now visualize data from moneyfacilities and nomoneyfacilities. This visualization details the mean shifts worked for each dataset. As we have seen this visualization in previous presentations, I will refrain from detailed analysis. This graph is a little bit different from the last presentation though, since we now used the values from the corrected dataset. Thus, while the values are different, our point still stands.
+```{r}
+value1 = mean(moneyfacilities$total_shifts_worked_2025, na.rm = TRUE)
+value2 = mean(nomoneyfacilities$total_shifts_worked_2025, na.rm = TRUE)
+
+temp2 <- data.frame(
+  Category = c("Yes", "No"),  # x-axis labels
+  Value = c(value1, value2)                 # y-axis values
+)
+
+ggplot(temp2, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Is the Facility's Posted Wages Above the 50th Percentile?") + ylab("Mean Total Shifts Worked at Facility in 2025") + ggtitle("Facilities Posting a High Wage Look\n to Get More Worked Shifts on Average") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + geom_text(aes(label = round(Value, 2), color = Category), vjust = -0.5, fontface = "bold", size = 6) + scale_y_continuous(limits = c(0,  150)) + scale_fill_manual(values = c("darkgray", "#68119A")) +  scale_color_manual(values = c("darkgray", "#68119A"))
+```
+
+This visualization details the mean facility cancels for each dataset. As we have seen this visualization in previous presentations, I will refrain from detailed analysis. 
+```{r}
+value1 = mean(moneyfacilities$total_shifts_fac_cancel_2025, na.rm = TRUE)
+value2 = mean(nomoneyfacilities$total_shifts_fac_cancel_2025, na.rm = TRUE)
+
+temp3 <- data.frame(
+  Category = c("Yes", "No"),  # x-axis labels
+  Value = c(value1, value2)                 # y-axis values
+)
+
+ggplot(temp3, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Is the Facility's Posted Wages Above the 50th Percentile?") + ylab("Mean Total Shifts Facility has Cancelled") + ggtitle("Facilities Posting a High Wage Have Half as Many\n Facility Cancels Compared to Facilities Who Do Not") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + scale_y_continuous(limits = c(0,55)) + geom_text(aes(label = round(Value), color = Category), vjust = -0.5, fontface = "bold", size = 6) + scale_fill_manual(values = c("darkgrey", "#68119A")) +  scale_color_manual(values = c("darkgray", "#68119A"))
+```
+
+Next, I wanted to explore if a higher wage led to nurses working more shifts. We used a similar method to separate the nurses. We found the median salary in 2025 was $53.81. With this, we create the following dataframes:
+moneynurses: nurses who made above a wage of $53.81 in 2025
+nimoneynurses: nurses who made exactly or below a wage of $53.81 in 2025
+```{r}
+summary(shift2nurses$avg_wage_shifts_worked_2025)
+
+moneynurses = shift2nurses[!is.na(shift2nurses$avg_wage_shifts_worked_2025) & shift2nurses$avg_wage_shifts_worked_2025 > 53.81, ]
+nomoneynurses = shift2nurses[!is.na(shift2nurses$avg_wage_shifts_worked_2025) & shift2nurses$avg_wage_shifts_worked_2025 <= 53.81, ]
+```
+
+We visualize the results of our exploration below. This visualization details the mean shifts worked for each dataset.As we have seen this visualization in previous presentations, I will refrain from detailed analysis. This graph is a little bit different from the last presentation though, since we now used the values from the corrected dataset. Thus, while the values are different, our point still stands.
+```{r}
+value1 = mean(moneynurses$total_shifts_worked_2025, na.rm = TRUE)
+value2 = mean(nomoneynurses$total_shifts_worked_2025, na.rm = TRUE)
+
+temp <- data.frame(
+  Category = c("Yes", "No"),  # x-axis labels
+  Value = c(value1, value2)                 # y-axis values
+)
+
+ggplot(temp, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Was the Nurse's Average Hourly Wage in 2025 Above $53.81?") + ylab("Mean Total Shifts Worked in 2025") + ggtitle("Nurses Who Make More Money\n Seem to Work More on Average") + theme_light() + theme(text = element_text(size = 15), legend.position = "none") + scale_y_continuous(limits = c(0, 30)) + geom_text(aes(label = round(Value), color = Category),  vjust = -0.5, fontface = "bold", size = 6) +  scale_fill_manual(values = c("darkgray", "#68119A")) +  scale_color_manual(values = c("darkgray", "#68119A"))
+```
+I also did work in exploring the wages of power users compared to regular users. This code produces the power user variable, separating by 1-5, 6-10, and 11+ shifts per year, where those in 11+ are power users. Those that worked 0 shifts are marked as NA and not accounted for.
+```{r}
+shift2nurses$power = ifelse(shift2nurses$total_shifts_worked_2025 > 10, "11+", ifelse((shift2nurses$total_shifts_worked_2025 > 5) &  (shift2nurses$total_shifts_worked_2025 <= 10), "6-10", ifelse((shift2nurses$total_shifts_worked_2025 >= 1) &  (shift2nurses$total_shifts_worked_2025 <= 5), "1-5", NA)))
+shift2nurses$power =  factor(
+  shift2nurses$power,
+  levels = c("1-5", "6-10", "11+"),
+  ordered = TRUE
+)
+table(shift2nurses$power)
+```
+
+Below we visualize the relationship between wage and status of each nurse. As we have seen this visualization in previous presentations, I will refrain from detailed analysis.
+```{r}
+ggplot(shift2nurses[shift2nurses$total_shifts_worked_2025 > 0, ], aes(y = avg_wage_shifts_worked_2025, x = power, fill = power)) + geom_boxplot(outlier.shape = NA, alpha = 0.85) + scale_y_continuous(limits = c(30, 70), labels = c("$30","$40","$50","$60","$70")) + xlab("Type of User") + ylab("Average Wage of Shifts Worked in 2025") + theme_light() + ggtitle("Wages Look to be Similar for Each User Type on Average") + theme(text = element_text(size = 12), legend.position = "none") + scale_fill_manual(values = c("darkgray", "darkgray", "#68119A")) + scale_x_discrete(labels = c("Low Users", "Mid Users", "Power Users"))
+```
+
+
+
+Something extra I did was take a quick look at uber rides. I was curious about how many nurses used it and if nurses who used it earned more money on average since uber takes money. I found that wages for uber users and non-uber users were roughly the same and only 0.8% of nurses in this dataset have used the feature.
+```{r}
+uberusers = shift2nurses[shift2nurses$uber_rides_completed_2025 > 0,]
+
+summary(shift2nurses$avg_wage_shifts_worked_2025)
+summary(uberusers$avg_wage_shifts_worked_2025)
+
+nrow(uberusers) / nrow(shift2nurses)
+```
+
+Now we focused our efforts on facility data and trying to find the best individual facilities and facility MSAs. First, I wanted to see how many MSAs had 2 or less facilities in them. Over 1/3 did, which was surprising. We decided to cut out these facilities when trying to find the best MSAs, for we think this would skew the ranking and a MSA having 2 or less facilities would not be desirable for nurses.
+```{r}
+mycounts = table(shift2facilities$facility_msa)
+sum(mycounts <= 2) / length(unique(shift2facilities$facility_msa))
+```
+This is the first ranking model we create, which we will call model A. The features and coefficients were hand picked by me. I chose the features that I believed had the most impact on a nurse's desirability to work there and I chose the coefficients in an attempt to scale the features (i.e. shifts claimed far outstrips any other feature so I half it, I place more emphasis on features like bundle shifts worked and guaranteed shifts worked to give more points ot facilities using shiftmed features, etc.). When referring to the values generated by this model, we will refer to them as points. 
+```{r}
+shift2facilities$facpoints2025 = 0.5 * shift2facilities$total_shifts_claimed_2025 + shift2facilities$total_confirmed_shifts_2025 + 0.75 * shift2facilities$total_shifts_worked_2025 + 2 * shift2facilities$avg_wage_shifts_posted_2025 + 2.5 * shift2facilities$total_guaranteed_shifts_worked_2025 + 2 * shift2facilities$total_bundle_shifts_worked_2025 - shift2facilities$total_shifts_fac_cancel_2025
+
+shift2facilities$facpoints2025 = ifelse(shift2facilities$total_shifts_worked_2025 == 0, 0, shift2facilities$facpoints2025)
+```
+
+
+
+These are the results of this model. For the best MSAs, we grouped each facility by MSA and found the mean points of each MSA group. We will visualize the results below. We also subset the top 8 for MSA and individual facility for graphing purposes.
+```{r}
+MSAsModelA2025 = shift2facilities %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  filter(n() > 2) %>%
+  summarize(total_value = mean(facpoints2025, na.rm = TRUE)) %>%
+  arrange(desc(total_value))
+
+facsModelA2025 = shift2facilities[, c("facility_id","facility_msa", "facpoints2025")] %>%
+  arrange(desc(facpoints2025))
+
+top8MSAsModelA <- MSAsModelA2025 %>%
+  arrange(desc(total_value)) %>% 
+  slice_head(n = 8) 
+         
+top8facsModelA <- facsModelA2025 %>%
+  arrange(desc(facpoints2025)) %>% 
+  slice_head(n = 8)          
+         
+MSAsModelA2025
+facsModelA2025
+top8MSAsModelA
+top8facsModelA
+```
+
+We visualize the results of our ranking below. This visualization details the points earned from Model A of the top 8 MSAs. First, we reordered the top 8 MSA dataframe so that it is in descending order, then we graph. As we have seen this visualization in previous presentations, I will refrain from detailed analysis.
+```{r}
+top8MSAsModelA <- top8MSAsModelA %>%
+  mutate(facility_msa = reorder(facility_msa, total_value))
+
+ggplot(top8MSAsModelA, aes(y = total_value, x = facility_msa, fill = factor(facility_msa))) +
+  geom_col(color = "black") + theme_light() + theme(text = element_text(size = 11), axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none") + geom_text(aes(label = round(total_value)), color = "#68119A", vjust = -0.5, fontface = "bold") + scale_y_continuous(limits = c(0, 1800)) + scale_fill_brewer(palette = "Purples", direction = 1) + xlab("Facility MSA") + ylab("Mean Facility Points of Each\n Facility in the MSA") + ggtitle("Top 8 Facility Locations Based on Average Facility Points") 
+```
+We continue to visualize the results of our ranking below. This visualization details the points earned from Model A of the top 8 facilities. First, we reordered the top 8 facility dataframe so that it is in descending order. Next, we highlighted if the MSA was St. Louis, as was seen in the presentation. Finally, we graph, with St. Louis being purple. As we have seen this visualization in previous presentations, I will refrain from detailed analysis.
+```{r}
+top8facsModelA <- top8facsModelA %>%
+  mutate(facility_id = reorder(facility_id, facpoints2025))
+
+top8facsModelA$highlight <- ifelse(top8facsModelA$facility_msa %in% c("St. Louis MO-IL MSA"), 
+                       "highlight", "other")
+
+ggplot(top8facsModelA, aes(x = facility_id, y = facpoints2025, fill = highlight)) +
+  geom_col(color = "black") + scale_x_discrete(labels = c(
+    "1785" = "Washington D.C. / Baltimore",
+    "6622" = "Lancaster",
+    "10414" = "PA Nonmetropolitan Area",
+    "20432" = "St Louis",
+    "20369" = "St Louis",
+    "9435" = "New York / North New Jersey",
+    "10832" = "Pittsburgh",
+    "20343" = "St. Louis"
+  )) + theme_light() + theme(text = element_text(size = 11), axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none") + geom_text(aes(label = round(facpoints2025), color = highlight), vjust = -0.5, fontface = "bold")  + scale_y_continuous(limits = c(0, 90000)) + xlab("Different Facilities Labelled by Location") + ylab("Facility Points") + ggtitle("Top 8 Facilities Based on the Facility Ranking System") +   scale_fill_manual(values = c("highlight" = "#68119A", "other" = "darkgray")) + scale_color_manual(values = c("highlight" = "#68119A", "other" = "darkgray"))
+```
+With these facility rankings, I also thought it would be interesting to see how the MSAs with the most nurses would rank with Model A. We identify the top 6 MSAs in this regard below.
+```{r}
+head(sort(table(shift2nurses$nurse_msa), decreasing = TRUE))
+```
+Now that we know the most populated MSAs, we create a dataframe where these are the only MSAs present. We also rename them to shorter names for ease.
+```{r}
+popfocus = c("St. Louis MO-IL MSA","Chicago-Gary-Kenosha IL-IN-WI CMSA","Washington-Baltimore DC-MD-VA-WV CMSA","Philadelphia-Wilmington-Atlantic City PA-NJ-DE-MD CMSA","Pittsburgh PA MSA","New York-Northern New Jersey-Long Island NY-NJ-CT-PA")
+popmsas = shift2facilities[shift2facilities$facility_msa %in% popfocus, ]
+
+popmsas <- popmsas %>%
+  mutate(facility_msa = recode(facility_msa,
+    "St. Louis MO-IL MSA" = "St. Louis",
+    "Chicago-Gary-Kenosha IL-IN-WI CMSA" = "Chicago",
+    "Washington-Baltimore DC-MD-VA-WV CMSA" = "Washington D.C.", "Philadelphia-Wilmington-Atlantic City PA-NJ-DE-MD CMSA" = "Philadelphia PA / NJ", "Pittsburgh PA MSA" = "Pittsburgh", "New York-Northern New Jersey-Long Island NY-NJ-CT-PA" = "New York"
+  ))
+```
+
+
+This is the first visualization we created for the dataframe created above. I was curious in observing difference in wages. It is important to note that we graph the wages posted of the initial dataset rather than the correct values. As we have seen this visualization in previous presentations, I will refrain from detailed analysis.
+```{r}
+ggplot(popmsas, aes(y = fct_reorder(facility_msa, avg_wage_shifts_posted_2025), x = avg_wage_shifts_posted_2025, fill = facility_msa)) + geom_boxplot(alpha = 0.85, outlier.shape = NA) + theme_light() + theme(text = element_text(size = 10), legend.position = "none") + scale_fill_brewer(palette = "Purples", direction = 3) + xlab("Average Wage of Shifts Posted (Per Hour)") + ylab("Facility MSA") + ggtitle("St Louis' Better Pay May Be a Reason Why\n it is One of the Highest Ranked MSAs") + scale_x_continuous(labels = c("$20","$30","$40","$50", "$60", "$70"))
+```
+
+This visualization is almost identical to the one above, just only using the values of avg wage posted for the corrected dataset. However, the story stays roughly the same, with St. Louis being at the top. This time Chicago is much more varied, but its median is still with the other surrounding MSAs.
+```{r}
+popmsasmerged = merged[merged$facility_msa %in% popfocus, ]
+
+popmsasmerged <- popmsasmerged %>%
+  mutate(facility_msa = recode(facility_msa,
+    "St. Louis MO-IL MSA" = "St. Louis",
+    "Chicago-Gary-Kenosha IL-IN-WI CMSA" = "Chicago",
+    "Washington-Baltimore DC-MD-VA-WV CMSA" = "Washington D.C.", "Philadelphia-Wilmington-Atlantic City PA-NJ-DE-MD CMSA" = "Philadelphia PA / NJ", "Pittsburgh PA MSA" = "Pittsburgh", "New York-Northern New Jersey-Long Island NY-NJ-CT-PA" = "New York"
+  ))
+
+ggplot(popmsasmerged, aes(y = fct_reorder(facility_msa, avg_wage_shifts_posted_2025), x = avg_wage_shifts_posted_2025, fill = facility_msa)) + geom_boxplot(alpha = 0.85, outlier.shape = NA) + theme_light() + theme(text = element_text(size = 10), legend.position = "none") + scale_fill_brewer(palette = "Purples", direction = 3) + xlab("Average Wage of Shifts Posted (Per Hour)") + ylab("Facility MSA") + ggtitle("St Louis' Better Pay May Be a Reason Why\n it is One of the Highest Ranked MSAs (Corrected Values)") 
+```
+
+Finally, this graph details the points from model A for each of the most populated MSAs. First, we reordered the most populated MSAs dataframe so that it is in descending order, then we graphed. As we have seen this visualization in previous presentations, I will refrain from detailed analysis.
+```{r}
+popmsas <- popmsas %>%
+  mutate(facility_msa = reorder(facility_msa, facpoints2025))
+
+ggplot(popmsas, aes(x = facility_msa, y = facpoints2025, fill = facility_msa)) +
+  stat_summary(fun = mean, geom = "bar", color = "black") +
+  labs(
+    x = "Facility MSA",
+    y = "Mean of Facility Points",
+    title = "St. Louis Dominates and Chicago Disappoints in Mean Facility Points") + theme_light() + theme(text = element_text(size = 10), legend.position = "none") + scale_fill_brewer(palette = "Purples") + coord_cartesian(ylim = c(0, 1600)) + stat_summary(
+  fun = mean,
+  geom = "text",
+  aes(label = round(after_stat(y))),
+  vjust = -0.5,
+  fontface = "bold", color = "#68119A"
+) 
+```
+The following visualizations were contained in the hidden slides in our second presentation.
+I wanted to visualize the following observation: 
+2025 - less nurses working, but they work more shifts
+2024 - more nurses working, but they work less shifts
+We have the specific code for this below
+```{r}
+sum(shift2nurses$total_shifts_worked_2025 > 2) #nurses who worked over 2 shifts in 2025
+sum(shift2nurses$total_shifts_worked_2024 > 2) #nurses who worked over 2 shifts in 2024
+
+sum(shift2nurses$total_shifts_worked_2025)
+sum(shift2nurses$total_shifts_worked_2024)
+```
+We start graphing this info below. We also throw in 2023 information for good measure. 
+```{r}
+value1 = sum(shift2nurses$total_shifts_worked_2023 > 0)
+value2 = sum(shift2nurses$total_shifts_worked_2024 > 0)
+value3 = sum(shift2nurses$total_shifts_worked_2025 > 0)
+
+temp <- data.frame(
+  Category = c("2023", "2024", "2025"),  # x-axis labels
+  Value = c(value1, value2, value3)                 # y-axis values
+)
+
+ggplot(temp, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Year") + ylab("Amount of Nurses Who Worked at Least 1 Shift") + ggtitle("2025 Saw the Least Amount of Nurses\n Work in the Last 3 Years") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + scale_y_continuous(limits = c(0, 4500)) + geom_text(aes(label = round(Value, 2), color = Category), vjust = -0.5, fontface = "bold") + scale_fill_manual(values = c("#8DD3D3", "darkgray", "#68119A")) + scale_color_manual(values = c("#8DD3D3", "darkgray", "#68119A"))
+```
+We graph the second part of this below. 2023 is here again as well. 
+```{r}
+value1 = sum(shift2nurses$total_shifts_worked_2023)
+value2 = sum(shift2nurses$total_shifts_worked_2024)
+value3 = sum(shift2nurses$total_shifts_worked_2025)
+
+temp <- data.frame(
+  Category = c("2023", "2024", "2025"),  # x-axis labels
+  Value = c(value1, value2, value3)                 # y-axis values
+)
+
+ggplot(temp, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Year") + ylab("Amount of Worked Shifts Across All Nurses") + ggtitle("2025 Had the Most Shifts Worked in Recent Times") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + scale_y_continuous(limits = c(0, 80000)) + geom_text(aes(label = round(Value, 2), color = Category), vjust = -0.5, fontface = "bold") + scale_fill_manual(values = c("#8DD3D3", "darkgray", "#68119A")) + scale_color_manual(values = c("#8DD3D3", "darkgray", "#68119A"))
+```
+Additionally, I wanted to see how facility attendance has changed over the time. We can see that the amount of facilities that have had at least 1 shift worked has decreased over time. While this is most likely due to closures of facilities, we also hypothesized that nurses have become more loyal to facilities over time.
+```{r}
+value1 = sum(shift2facilities$total_shifts_worked_2023 > 0)
+value2 = sum(shift2facilities$total_shifts_worked_2024 > 0)
+value3 = sum(shift2facilities$total_shifts_worked_2025 > 0)
+
+temp <- data.frame(
+  Category = c("2023", "2024", "2025"),  # x-axis labels
+  Value = c(value1, value2, value3)                 # y-axis values
+)
+
+ggplot(temp, aes(x = Category, y = Value, fill = Category)) + geom_bar(stat = "identity", color = "black") + xlab("Year") + ylab("Amount of Facilities That\n Had at Least 1 Shift Worked") + ggtitle("Amount of Facilities Worked at Have\n Steadily Decreased Over Time") + theme_light() + theme(text = element_text(size = 13), legend.position = "none") + scale_y_continuous(limits = c(0, 1500)) + geom_text(aes(label = round(Value, 2), color = Category), vjust = -0.5, fontface = "bold") + scale_fill_manual(values = c("#8DD3D3", "darkgray", "#68119A")) + scale_color_manual(values = c("#8DD3D3", "darkgray", "#68119A"))
+```
+I decided to test this hypothesis. Observing our means, we can see that it is most likely false. For 2025, the interpretation of this value would be: on average, users worked at about 1.45 facilities per month in 2025. With this, I believe it would be fair to say most nurses stick to 1 facility.
+```{r}
+facilityloyalty = shift2nursesmonthly %>%
+  filter(total_facilities_worked > 0) %>%
+  mutate(year = year(mdy(.data$month_date))) %>%
+  group_by(year, caregiver_id) %>%
+  summarise(mean_per_level = mean(total_facilities_worked, na.rm = TRUE), .groups = "drop") %>%
+  group_by(year) %>%
+  summarise(mean_per_year = mean(mean_per_level), .groups = "drop")
+
+facilityloyalty
+```
+Finally, I decided to try a new ranking methods for facilities; instead of using my own opinion of what is best for nurses, I decided to make a straightforward ranking of features (i.e. the facility that had the most shifts worked in 2025 was rank 1 in total shifts worked in 2025). In ties, ranks will share the same feature then jump to what would be the next number (i.e. the ranks would go 1,2,3,3,3,6,... etc. where the values at rank 3 are tied) In the case of facility cancels, this is reversed, since we want to minimize the amount of times this happens. This ranking was restricted to quantitative features due to its nature.
+```{r}
+bad_vars <- c("total_shifts_fac_cancel_2023", "total_shifts_fac_cancel_2024", "total_shifts_fac_cancel_2025")
+
+shift2facilities_ranked <- shift2facilities %>%
+  mutate(
+    across(where(is.numeric),
+           ~ {
+             if (cur_column() %in% bad_vars) {
+               rank(.)           
+             } else {
+               rank(desc(.)) 
+             }
+           },
+           .names = "rank_{.col}")
+  )
+```
+
+Now we find the best facilities and facility MSAs with this new ranking model, which we will call model B. This code chunk finds the best facility MSAs with model B. We still choose to restrict to MSAs that have over 2 facilities. We also choose to scale the ranking variables, since we want them to be across the same range (0 - 1). We find the best facilities in model B by first taking the average rank across all features of an MSA. The top 8 MSAs with the highest average rank is in our dataframe top8MSAsModelB. Some MSAs are similar to model A, such as Johnstown, whereas others, such as Madison WI, are exclusive to this model.
+```{r}
+meanpointsovertwo2025 = shift2facilities_ranked %>%
+  group_by(facility_msa) %>%    # Group by the categorical variable
+  filter(n() > 2) %>%
+  summarize(total_value = mean(facpoints2025, na.rm = TRUE), across(c( total_shifts_worked_2025, total_shifts_claimed_2025, total_guaranteed_shifts_worked_2025,total_confirmed_shifts_2025, rank_facpoints2025, rank_total_shifts_worked_2025, rank_total_shifts_claimed_2025, rank_total_guaranteed_shifts_worked_2025,rank_total_confirmed_shifts_2025), ~ mean(.x, na.rm = TRUE))) %>%
+  arrange(desc(total_value))
+
+scaledbestMSAs <- meanpointsovertwo2025  %>%
+  mutate(across(starts_with("rank_"),
+                ~ (. - min(., na.rm = TRUE)) / (max(., na.rm = TRUE) - min(., na.rm = TRUE)),
+                .names = "scaled_{.col}"))
+
+scaledbestMSAsavg <- scaledbestMSAs %>%
+  rowwise() %>%
+  mutate(avg_rank = mean(c_across(starts_with("rank_")), na.rm = TRUE)) %>%
+  ungroup()
+
+top8MSAsModelB <- scaledbestMSAsavg %>%
+  slice_min(avg_rank, n = 8)
+
+top8MSAsModelB
+```
+We now find the top 5 facilities with model B. We use similar methods. The facilities with the highest mean rank across all features ranked higher. We used less quantitative features and did top 5 instead of top 8 in the interest of our visualization.
+```{r}
+bestfacs2025 = shift2facilities_ranked[, c("facility_id","facility_msa", "facpoints2025", "total_shifts_worked_2025", "total_shifts_claimed_2025", "total_guaranteed_shifts_worked_2025","total_bundle_shifts_worked_2025","total_confirmed_shifts_2025", "rank_facpoints2025", "rank_total_shifts_worked_2025", "rank_total_shifts_claimed_2025", "rank_total_guaranteed_shifts_worked_2025","rank_total_bundle_shifts_worked_2025","rank_total_confirmed_shifts_2025")] %>%  
+  arrange(desc(facpoints2025)) 
+
+scaledbestfacs2025 <- bestfacs2025 %>%
+  mutate(across(starts_with("rank_"),
+                ~ (. - min(., na.rm = TRUE)) / (max(., na.rm = TRUE) - min(., na.rm = TRUE)),
+                .names = "scaled_{.col}"))
+
+scaledbestfacs2025avg <- scaledbestfacs2025 %>%
+  rowwise() %>%
+  mutate(avg_rank = mean(c_across(starts_with("rank_")), na.rm = TRUE)) %>%
+  ungroup()
+
+top5facsModelB <- scaledbestfacs2025avg %>%
+  slice_min(avg_rank, n = 5)
+
+top5facsModelB
+```
+Now that we have the top MSAs and facilities, we are ready to visualize. However, I chose to do this in a heatmap instead of a bar plot; I wanted to compare features for each of these MSAs / facilities. Below we get a dataframe ready to graph the top 8 MSAs. 
+
+```{r}
+cols_to_drop <- c("total_value", "total_shifts_worked_2025", "total_shifts_claimed_2025", "total_guaranteed_shifts_worked_2025","total_confirmed_shifts_2025")
+
+top8MSAsModelB2 <- top8MSAsModelB %>%
+  select(-all_of(cols_to_drop))
+
+top8MSAsModelB2 <- top8MSAsModelB2 %>%
+  select(facility_msa, where(is.numeric), -rank_facpoints2025)
+
+MSA_long <- top8MSAsModelB2 %>%
+  pivot_longer(
+    cols = starts_with("rank_"),
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  pivot_longer(
+    cols = starts_with("scaled_rank_"),
+    names_to = "scaled_variable",
+    values_to = "scaled_value"
+  )
+
+MSA_long <- MSA_long %>%
+  filter(gsub("scaled_", "", scaled_variable) == variable)
+
+order_vec = top8MSAsModelB2$facility_msa
+MSA_long$facility_msa = factor(
+  MSA_long$facility_msa,
+  levels = rev(order_vec))
+```
+
+As we now have a long dataframe, we are able to visualize our data in a heatmap. We do so below. As we have seen this visualization in a previous presentation, I will refrain from detailed analysis.
+```{r}
+ggplot(MSA_long, aes(x = factor(facility_msa), y = scaled_variable, fill = scaled_value)) +
+  geom_tile(color = "white") + scale_fill_gradient2(
+  high = "#F6CEFC",   # bright cyan
+  low = "darkgray",   # dark gray
+  mid = "#68119A",  # deep purple
+  breaks = c(0.10, 0.90),
+  labels = c("High Rank", "Low Rank"),
+  name = "Relative Standing",
+  trans = "reverse",
+  midpoint = median(MSA_long$scaled_value, na.rm = TRUE),
+  limits = c(0,1)
+) +
+  labs(x = "Facility Location", y = "Features", fill = "Relative Standing") + theme_light() + theme(text = element_text(size = 11), axis.text.x = element_text(angle = 45, hjust = 1)) + ggtitle("Ranking Features from the 'Best' Facility Locations") + scale_y_discrete(labels = c(
+    "scaled_rank_total_shifts_worked_2025" = "Average Rank of\n Total Shifts Worked",
+    "scaled_rank_total_shifts_fac_cancel_2025" = "Average Rank of\n Total Shifts Facility Cancelled",
+    "scaled_rank_total_shifts_claimed_2025" = "Average Rank of\n Total Shifts Claimed",
+    "scaled_rank_total_guaranteed_shifts_worked_2025" = "Average Rank of\n Total Guaranteed Shifts Worked",
+    "scaled_rank_total_confirmed_shifts_2025" = "Average Rank of\n Total Confirmed Shifts Worked",
+    "scaled_rank_total_bundle_shifts_worked_2025" = "Average Rank\n of Total Bundle Shifts Worked"
+  )) + geom_text(aes(label = round(value)), size = 3, color = "cyan") + scale_x_discrete(labels = c("Columbus GA-AL MSA" = "Columbus GA / AL", "Madison WI MSA" = "Madison WI", "Albany-Schenectady-Troy NY MSA" = "Albany NY Area", "DE NONMETROPOLITAN AREA" = "Rural DE", "Johnstown PA MSA" = "Johnstown PA", "Santa Fe NM MSA" = "Santa Fe NM", "Albuquerque NM MSA" = "Albuquerque NM", "Oklahoma City OK MSA" = "Oklahoma City OK"))
+```
+Now we will carry out the same process for the top 5 facilities.
+```{r}
+cols_to_drop2 <- c("facpoints2025", "total_shifts_worked_2025", "total_shifts_claimed_2025", "total_guaranteed_shifts_worked_2025","total_bundle_shifts_worked_2025","total_confirmed_shifts_2025")
+
+top5facsModelB2 <- top5facsModelB %>%
+  select(-all_of(cols_to_drop2))
+
+top5facsModelB2 <- top5facsModelB2 %>%
+  select(facility_id, where(is.numeric), -rank_facpoints2025)
+
+
+fac_long <- top5facsModelB2 %>%
+  pivot_longer(
+    cols = starts_with("rank_"),
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  pivot_longer(
+    cols = starts_with("scaled_rank_"),
+    names_to = "scaled_variable",
+    values_to = "scaled_value"
+  )
+fac_long <- fac_long %>%
+  filter(gsub("scaled_", "", scaled_variable) == variable)
+
+order_vec = top5facsModelB2$facility_id
+fac_long$facility_id = factor(
+  fac_long$facility_id,
+  levels = rev(order_vec)
+)
+```
+
+As we now have a long dataframe, we are able to visualize our data in a heatmap. We do so below. As we have seen this visualization in a previous presentation, I will refrain from detailed analysis.
+```{r}
+ggplot(fac_long, aes(x = factor(facility_id), y = scaled_variable, fill = scaled_value)) +
+  geom_tile(color = "white") + scale_fill_gradient2(
+  high = "#F6CEFC",   # bright cyan
+  low = "darkgray",   # dark gray
+  mid = "#68119A",  # deep purple
+  breaks = c(0.0025, 0.0175),
+  labels = c("Higher Rank", "Lower Rank"),
+  name = "Relative Standing",
+  trans = "reverse",
+  midpoint = median(fac_long$scaled_value, na.rm = TRUE)
+) +
+  labs(x = "Different Facilities Labelled by Location", y = "Features", fill = "Value of Feature") + theme_light() + theme(text = element_text(size = 11), axis.text.x = element_text(angle = 45, hjust = 1)) + ggtitle("Ranking Features from the 'Best' Facilites") + scale_y_discrete(labels = c(
+    "scaled_rank_total_shifts_worked_2025" = "Rank of Total Shifts Worked",
+    "scaled_rank_total_shifts_claimed_2025" = "Rank of Total Shifts Claimed",
+    "scaled_rank_total_guaranteed_shifts_worked_2025" = "Rank of Total Guaranteed Shifts Worked",
+    "scaled_rank_total_confirmed_shifts_2025" = "Rank of Total Confirmed Shifts Worked",
+    "scaled_rank_total_bundle_shifts_worked_2025" = "Rank of Total Bundle Shifts Worked"
+  )) +
+  geom_text(aes(label = value), size = 3, color = "cyan") + scale_x_discrete(labels = c("20343" = "St. Louis", "20369" = "St. Louis", "20432" = "St. Louis", "20230" = "St. Louis", "20397" = "St. Louis", "10832" = "Pittsburgh", "20262" = "Oklahoma City", "10434" = "Rural PA"))
+```
+
