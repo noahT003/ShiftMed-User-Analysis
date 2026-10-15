@@ -1,1 +1,43 @@
-# ShiftMed-User-Analysis
+# ShiftMed User Analysis
+
+## Overview
+Brief explanation of the project.
+
+## Objective
+What question were you trying to answer?
+
+## Data
+What data did you use? Where did it come from?
+
+## Tools Used
+R
+
+## Methods
+- Data cleaning
+- Exploratory analysis
+- Visualization
+- Modeling
+- Statistical testing
+
+## Key Findings
+- Finding 1
+- Finding 2
+- Finding 3
+
+## Folders
+code: contains Rstudio code on visualizations / data wrangling. The order of the workflow is the following:
+1. explorshift.Rmd
+2. explorshift2withMoreAnalysis.Rmd
+3. EditedVariables.Rmd
+4. advancedanalysis.Rmd
+5. newshiftdata.Rmd
+6. money&facilities.Rmd
+7. FinalWageFacilityEtcCode.Rmd
+   
+We note that my workflow may be a little messy in later files. My final file,  FinalWageFacilityEtcCode.Rmd, aims to remedy this by giving a straightforward workflow for all of my final results
+
+## How to Run
+Explain how someone can open or run the project.
+
+## Notes
+Add anything important, including confidentiality limitations if needed.
