@@ -40,4 +40,4 @@ We note that my workflow may be a little messy in later files. My final file,  F
 Explain how someone can open or run the project.
 
 ## Notes
-Add anything important, including confidentiality limitations if needed.
+Due to NDA restrictions, the original dataset nor can visualizations of it cannot be shared in this repository. Thus, only the code for this project is shared. If my code were to be ran on another dataset of similar contents, all that would have to be done is changing the file name of the dataset being loaded.
