@@ -20,7 +20,7 @@ R. Utilized ggplot2 and tidyverse packages. Used knowledge of Python (seaborn, m
 - Team leadership
 
 ## Key Findings
-- Due to NDA restrictions, I refrain from interpreting the data.
+Due to NDA restrictions, I refrain from interpreting the data.
 
 ## Folders
 code: contains Rstudio code on visualizations / data wrangling. The order of the workflow is the following:
